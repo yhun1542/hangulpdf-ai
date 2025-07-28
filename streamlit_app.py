@@ -55,9 +55,9 @@ def extract_text_with_ocr(pdf_bytes):
     except Exception as e:
         return f"OCR 처리 중 오류: {str(e)}"
 
-# 로컬 PDF 처리 함수 (사용자 선택 OCR 옵션 포함)
+# 로컬 PDF 처리 함수 (기본 텍스트 추출 로직 개선)
 def process_pdf_locally(request_data, progress_callback=None):
-    """PDF를 로컬에서 직접 처리하는 함수 (사용자 선택 OCR 옵션 포함)"""
+    """PDF를 로컬에서 직접 처리하는 함수 (기본 텍스트 추출 로직 개선)"""
     try:
         import pdfplumber
         import openai
@@ -69,25 +69,44 @@ def process_pdf_locally(request_data, progress_callback=None):
         file_content = base64.b64decode(request_data['file_content'])
         
         if progress_callback:
-            progress_callback("텍스트 추출 중...", 0.2)
+            progress_callback("기본 텍스트 추출 중...", 0.2)
         
-        # PDF 텍스트 추출 (기본 방식)
+        # PDF 텍스트 추출 (기본 방식) - 항상 실행
         extracted_text = ""
+        basic_extraction_success = False
+        
         try:
             with pdfplumber.open(BytesIO(file_content)) as pdf:
-                for page in pdf.pages:
-                    text = page.extract_text()
-                    if text:
-                        extracted_text += text + "\n"
+                total_pages = len(pdf.pages)
+                st.info(f"📄 PDF 페이지 수: {total_pages}")
+                
+                for i, page in enumerate(pdf.pages):
+                    try:
+                        text = page.extract_text()
+                        if text and text.strip():
+                            extracted_text += f"\n--- 페이지 {i+1} ---\n{text}\n"
+                            basic_extraction_success = True
+                    except Exception as page_error:
+                        st.warning(f"페이지 {i+1} 텍스트 추출 실패: {str(page_error)}")
+                        continue
+                
+                if basic_extraction_success:
+                    st.success(f"✅ 기본 텍스트 추출 성공: {len(extracted_text)} 글자")
+                else:
+                    st.warning("⚠️ 기본 텍스트 추출에서 텍스트를 찾을 수 없습니다.")
+                    
         except Exception as e:
-            st.warning(f"기본 텍스트 추출 실패: {str(e)}")
+            st.error(f"❌ 기본 텍스트 추출 실패: {str(e)}")
+            basic_extraction_success = False
         
         # 사용자가 OCR 옵션을 선택한 경우에만 OCR 실행
         if request_data['options'].get('use_ocr') and OCR_AVAILABLE:
             if progress_callback:
                 progress_callback("OCR을 사용한 텍스트 추출 중...", 0.4)
             
+            st.info("🔍 OCR 텍스트 추출을 시작합니다...")
             ocr_text = extract_text_with_ocr(file_content)
+            
             if ocr_text and not ocr_text.startswith("OCR 처리 중 오류"):
                 # OCR 결과가 있으면 기본 텍스트와 결합하거나 대체
                 if len(extracted_text.strip()) < 100:
@@ -100,6 +119,14 @@ def process_pdf_locally(request_data, progress_callback=None):
                     st.info("📷 기본 텍스트 추출과 OCR을 모두 사용했습니다.")
             else:
                 st.warning("OCR 텍스트 추출에 실패했습니다.")
+        
+        # 최종 텍스트 길이 확인
+        final_text_length = len(extracted_text.strip())
+        if final_text_length == 0:
+            st.error("❌ 텍스트 추출에 실패했습니다. PDF가 이미지 기반일 수 있습니다. OCR 옵션을 사용해보세요.")
+            extracted_text = "텍스트 추출에 실패했습니다. 이 PDF는 이미지 기반일 수 있습니다."
+        else:
+            st.success(f"✅ 최종 추출된 텍스트: {final_text_length:,} 글자")
         
         result = {"extracted_text": extracted_text}
         
