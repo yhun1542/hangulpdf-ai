@@ -4,6 +4,37 @@ import json
 import os
 from io import BytesIO
 import base64
+import streamlit.components.v1 as components
+
+# 복사 버튼 HTML/JavaScript 함수
+def create_copy_button(text_content, button_id):
+    """복사 버튼을 생성하는 함수"""
+    copy_button_html = f"""
+    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+        <button id="{button_id}" onclick="copyToClipboard_{button_id}()" 
+                style="background-color: #ff4b4b; color: white; border: none; 
+                       padding: 5px 10px; border-radius: 5px; cursor: pointer; 
+                       font-size: 12px; margin-left: 10px;">
+            📋 복사하기
+        </button>
+    </div>
+    <script>
+    function copyToClipboard_{button_id}() {{
+        const text = `{text_content.replace('`', '\\`').replace('$', '\\$')}`;
+        navigator.clipboard.writeText(text).then(function() {{
+            document.getElementById('{button_id}').innerHTML = '✅ 복사됨!';
+            document.getElementById('{button_id}').style.backgroundColor = '#00cc44';
+            setTimeout(function() {{
+                document.getElementById('{button_id}').innerHTML = '📋 복사하기';
+                document.getElementById('{button_id}').style.backgroundColor = '#ff4b4b';
+            }}, 2000);
+        }}, function(err) {{
+            alert('복사 실패: ' + err);
+        }});
+    }}
+    </script>
+    """
+    return copy_button_html
 
 # 로컬 PDF 처리 함수 (상단으로 이동)
 def process_pdf_locally(request_data):
@@ -203,7 +234,7 @@ with tab2:
             if 'extracted_text' in result:
                 st.subheader("📝 추출된 텍스트")
                 with st.expander("전체 텍스트 보기"):
-                    st.text_area("", value=result['extracted_text'], height=300)
+                    st.text_area("추출된 텍스트", value=result['extracted_text'], height=300)
             
             # 요약 결과
             if 'summary' in result:
@@ -252,14 +283,46 @@ with tab3:
                 if 'extracted_text' in result:
                     # ChatGPT 프롬프트 (전체 텍스트 표시)
                     st.markdown("**💬 ChatGPT 프롬프트:**")
-                    chatgpt_prompt = f"""다음 문서를 분석해주세요:
+                    chatgpt_prompt = f"""다음 한글 문서를 AI가 자동 분석한 뒤, 문서 유형과 주요 내용을 파악하여 다음 항목들을 포함한 요약 및 구조화된 분석 결과를 생성해주세요.
 
 {result['extracted_text']}
 
-위 문서에 대해 다음을 수행해주세요:
-1. 주요 내용 요약
-2. 핵심 키워드 추출
-3. 중요한 질문 3개 생성"""
+1. 📂 문서 기본 정보:
+   - 문서 제목 또는 추정 제목
+   - 작성 날짜 또는 추정 시점
+   - 작성 주체 또는 관련 기관/담당자 추정
+   - 문서 목적(정책 문서/보고서/계획안/회의록/제안서 등) 자동 분류
+
+2. 🧩 문서 구조 분석:
+   - 목차 또는 섹션 구성 추정
+   - 각 섹션별 요약 (3줄 이내)
+   - 표, 그림, 도표가 포함된 경우 해당 내용 요약
+
+3. 🧠 핵심 내용 요약 및 인사이트:
+   - 전체 문서의 핵심 주제 및 주요 주장 요약 (5줄 이내)
+   - 자주 등장하는 키워드 및 핵심 개념(빈도 분석 포함)
+   - 문서 내 등장하는 중요한 수치, 날짜, 고유명사(인물, 기관 등) 추출
+   - 중요한 결정사항, 요청사항, 일정, 액션 아이템 자동 분리
+
+4. 🛠️ 문서 유형별 특화 분석 (자동 판단하여 포함):
+   - ✅ 기획안/제안서: 핵심 아이디어, 제안 배경, 기대 효과 요약
+   - ✅ 회의록: 참석자, 주요 논의사항, 결정사항 및 후속 조치 정리
+   - ✅ 정책/행정문서: 정책 목적, 대상, 추진 전략 및 일정 요약
+   - ✅ 공사/계약문서: 계약 조건, 공정 일정, 이해관계자 분석
+   - ✅ 보고서: 분석 대상, 방법, 결론 및 제언 구분
+
+5. 🔍 오류 및 주의요소 감지:
+   - 문서 내 날짜 오류, 논리 비약, 누락 정보 자동 감지
+   - 문맥상 혼란을 줄 수 있는 표현 또는 오탈자 추정
+
+6. 🧾 결과 요약 형식:
+   - 마크다운(.md) 형식으로 요약 결과 제공
+   - 제목, 소제목, 목록 등을 구조적으로 제공
+
+문서를 사람이 읽지 않고도 전체적 흐름과 인사이트를 파악할 수 있도록 분석해주세요."""
+                    
+                    # 복사 버튼
+                    components.html(create_copy_button(chatgpt_prompt, "chatgpt_copy"), height=50)
                     
                     st.text_area(
                         "ChatGPT에 복사하여 사용하세요:", 
@@ -270,15 +333,46 @@ with tab3:
                     
                     # Gemini 프롬프트
                     st.markdown("**🔮 Gemini 프롬프트:**")
-                    gemini_prompt = f"""문서 분석 요청:
+                    gemini_prompt = f"""다음 한글 문서를 AI가 자동 분석한 뒤, 문서 유형과 주요 내용을 파악하여 다음 항목들을 포함한 요약 및 구조화된 분석 결과를 생성해주세요.
 
 {result['extracted_text']}
 
-분석 항목:
-- 문서 유형 및 목적 파악
-- 핵심 내용 정리
-- 실행 가능한 액션 아이템 추출
-- 관련 질문 생성"""
+1. 📂 문서 기본 정보:
+   - 문서 제목 또는 추정 제목
+   - 작성 날짜 또는 추정 시점
+   - 작성 주체 또는 관련 기관/담당자 추정
+   - 문서 목적(정책 문서/보고서/계획안/회의록/제안서 등) 자동 분류
+
+2. 🧩 문서 구조 분석:
+   - 목차 또는 섹션 구성 추정
+   - 각 섹션별 요약 (3줄 이내)
+   - 표, 그림, 도표가 포함된 경우 해당 내용 요약
+
+3. 🧠 핵심 내용 요약 및 인사이트:
+   - 전체 문서의 핵심 주제 및 주요 주장 요약 (5줄 이내)
+   - 자주 등장하는 키워드 및 핵심 개념(빈도 분석 포함)
+   - 문서 내 등장하는 중요한 수치, 날짜, 고유명사(인물, 기관 등) 추출
+   - 중요한 결정사항, 요청사항, 일정, 액션 아이템 자동 분리
+
+4. 🛠️ 문서 유형별 특화 분석 (자동 판단하여 포함):
+   - ✅ 기획안/제안서: 핵심 아이디어, 제안 배경, 기대 효과 요약
+   - ✅ 회의록: 참석자, 주요 논의사항, 결정사항 및 후속 조치 정리
+   - ✅ 정책/행정문서: 정책 목적, 대상, 추진 전략 및 일정 요약
+   - ✅ 공사/계약문서: 계약 조건, 공정 일정, 이해관계자 분석
+   - ✅ 보고서: 분석 대상, 방법, 결론 및 제언 구분
+
+5. 🔍 오류 및 주의요소 감지:
+   - 문서 내 날짜 오류, 논리 비약, 누락 정보 자동 감지
+   - 문맥상 혼란을 줄 수 있는 표현 또는 오탈자 추정
+
+6. 🧾 결과 요약 형식:
+   - 마크다운(.md) 형식으로 요약 결과 제공
+   - 제목, 소제목, 목록 등을 구조적으로 제공
+
+문서를 사람이 읽지 않고도 전체적 흐름과 인사이트를 파악할 수 있도록 분석해주세요."""
+                    
+                    # 복사 버튼
+                    components.html(create_copy_button(gemini_prompt, "gemini_copy"), height=50)
                     
                     st.text_area(
                         "Gemini에 복사하여 사용하세요:", 
@@ -299,15 +393,15 @@ Please provide:
 - Potential follow-up questions
 - Creative perspectives on the content"""
                     
+                    # 복사 버튼
+                    components.html(create_copy_button(grok_prompt, "grok_copy"), height=50)
+                    
                     st.text_area(
                         "Grok에 복사하여 사용하세요:", 
                         value=grok_prompt, 
                         height=150,
                         key="grok_prompt"
                     )
-                    
-                    # 복사 도움말
-                    st.info("💡 각 텍스트 박스를 클릭하고 Ctrl+A → Ctrl+C로 전체 내용을 복사할 수 있습니다.")
                 
         else:
             st.error("변환 결과에 오류가 있어 내보내기를 할 수 없습니다.")
