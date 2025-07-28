@@ -1,136 +1,131 @@
-# 📄 HangulPDF AI Converter
+# 🔄 HangulPDF AI Converter
 
-한글로 작성된 PDF 문서를 AI가 쉽게 활용할 수 있도록 자동 변환하고, 요약하고, 질문 응답 및 공유 가능한 형태로 저장하는 웹 애플리케이션입니다.
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://hangulpdf-ai.streamlit.app)
 
-## 🚀 주요 기능
+한글 PDF 문서를 AI가 쉽게 활용할 수 있도록 자동 변환하고, 요약하고, 질문 응답 및 공유 가능한 형태로 저장하는 웹 애플리케이션입니다.
 
-- **PDF 텍스트 추출**: 한글 PDF에서 텍스트를 정확하게 추출
-- **AI 요약**: OpenAI GPT를 활용한 문서 요약 생성
-- **질문-답변 생성**: 문서 내용 기반 Q&A 자동 생성
-- **텍스트 정제**: 추출된 텍스트의 품질 향상
-- **다양한 내보내기**: 텍스트, 요약 파일 다운로드
-- **AI 모델 연동**: ChatGPT, Gemini, Grok 등과 쉬운 연동
+## 🚀 라이브 데모
 
-## 🛠️ 기술 스택
+**영구 배포 URL**: https://hangulpdf-ai.streamlit.app
 
-- **Frontend**: Streamlit
-- **Backend**: FastAPI (선택적)
-- **PDF 처리**: pdfplumber
-- **AI 모델**: OpenAI GPT-3.5/GPT-4
-- **언어 처리**: kss, hanspell
-- **클라우드 연동**: Google Drive API
+## ✨ 주요 기능
 
-## 📦 설치 및 실행
+### 📄 **PDF 처리**
+- **텍스트 추출**: PyPDF2를 사용한 빠른 텍스트 추출
+- **고급 OCR**: 이미지 기반 PDF, 표, 스캔 문서 지원
+- **한글 특화**: 한글 문서 최적화된 처리
 
-### 1. 로컬 실행
+### 🤖 **AI 분석**
+- **자동 AI 분석**: ChatGPT, Gemini, Grok 동시 분석
+- **구조화된 요약**: 6단계 체계적 문서 분석
+- **PDF 보고서 생성**: 분석 결과를 PDF로 자동 생성
+- **ZIP 패키지**: 원본 + 분석 결과 일괄 다운로드
 
+### 🎨 **사용자 경험**
+- **모바일 반응형**: 모든 디바이스 지원
+- **실시간 진행률**: 처리 상태 실시간 표시
+- **한글 UI**: 완전한 한글 인터페이스
+
+## 🛠️ 로컬 설치 및 실행
+
+### 1. 저장소 클론
 ```bash
-# 저장소 클론
-git clone https://github.com/YOUR_USERNAME/hangulpdf-ai.git
+git clone https://github.com/yhun1542/hangulpdf-ai.git
 cd hangulpdf-ai
+```
 
-# 의존성 설치
+### 2. 의존성 설치
+```bash
 pip install -r requirements.txt
+```
 
-# Streamlit 앱 실행
+### 3. 환경 설정
+`.streamlit/secrets.toml` 파일 생성:
+```toml
+OPENAI_API_KEY = "your-openai-api-key-here"
+```
+
+### 4. 앱 실행
+```bash
 streamlit run streamlit_app.py
 ```
 
-### 2. Streamlit Cloud 배포
+## 🌐 Streamlit Cloud 배포
 
-1. 이 저장소를 GitHub에 fork 또는 clone
-2. [Streamlit Cloud](https://streamlit.io/cloud)에 로그인
-3. "New app" 클릭 후 이 저장소 선택
-4. App path를 `streamlit_app.py`로 설정
-5. Advanced settings에서 Secrets 설정:
+### 1. GitHub 저장소 연결
+1. [Streamlit Cloud](https://streamlit.io/cloud) 접속
+2. GitHub 계정으로 로그인
+3. 이 저장소 선택
 
-```toml
-# .streamlit/secrets.toml
-OPENAI_API_KEY = "your-openai-api-key-here"
-GDRIVE_SERVICE_JSON = "your-google-drive-service-account-json-here"
+### 2. 환경 변수 설정
+Streamlit Cloud 대시보드에서 다음 설정:
+```
+OPENAI_API_KEY = your-openai-api-key
 ```
 
-6. Deploy 클릭!
+### 3. 배포 완료
+- **앱 진입점**: `streamlit_app.py`
+- **Python 버전**: 3.11
+- **자동 배포**: GitHub 푸시 시 자동 업데이트
 
-## 🔑 환경 변수 설정
+## 📱 사용 방법
 
-### 필수 설정
-- `OPENAI_API_KEY`: OpenAI API 키 (GPT 모델 사용)
+### **기본 사용**
+1. 🔗 [앱 접속](https://hangulpdf-ai.streamlit.app)
+2. 🔑 OpenAI API 키 입력 (좌측 사이드바)
+3. 📄 PDF 파일 업로드
+4. ⚙️ 변환 옵션 선택
+5. 🚀 변환 시작
 
-### 선택적 설정
-- `GDRIVE_SERVICE_JSON`: Google Drive 업로드용 서비스 계정 JSON
+### **자동 AI 분석**
+1. ✅ "자동 AI 분석 및 ZIP 다운로드" 체크
+2. 📤 PDF 업로드 후 변환 시작
+3. 🤖 ChatGPT, Gemini, Grok 자동 분석
+4. 📦 완성된 ZIP 파일 다운로드
 
-## 📖 사용법
+## 🔧 기술 스택
 
-1. **PDF 업로드**: 한글 PDF 파일을 업로드
-2. **변환 옵션 선택**: 텍스트 추출, 요약 생성, Q&A 생성 등
-3. **변환 실행**: AI가 문서를 분석하고 변환
-4. **결과 확인**: 추출된 텍스트, 요약, 질문-답변 확인
-5. **내보내기**: 결과를 파일로 다운로드하거나 다른 AI 모델에 연동
+### **Backend**
+- **Streamlit**: 웹 애플리케이션 프레임워크
+- **PyPDF2**: PDF 텍스트 추출
+- **pytesseract**: OCR 엔진
+- **OpenCV**: 이미지 전처리
 
-## 🤖 AI 모델 연동 방법
+### **AI & PDF 생성**
+- **OpenAI GPT**: 문서 분석 및 요약
+- **WeasyPrint**: 고품질 PDF 생성
+- **ReportLab**: 전문적 PDF 레포트
+- **FPDF**: 기본 PDF 생성
 
-### ChatGPT
-추출된 텍스트를 복사하여 ChatGPT에 직접 붙여넣기
+### **배포**
+- **Streamlit Cloud**: 영구 배포 플랫폼
+- **GitHub**: 소스 코드 관리 및 CI/CD
 
-### Gemini
-Google AI Studio에서 추출된 텍스트 활용
+## 📊 시스템 요구사항
 
-### Grok (X AI)
-X 플랫폼의 Grok에 텍스트 입력
-
-## 🔧 개발자 정보
-
-### 프로젝트 구조
-```
-hangulpdf-ai/
-├── streamlit_app.py          # Streamlit 메인 앱
-├── main.py                   # FastAPI 서버 (선택적)
-├── requirements.txt          # Python 의존성
-├── modules/                  # 핵심 모듈들
-│   ├── converter.py         # PDF 변환 로직
-│   ├── gpt_summary.py       # GPT 요약 생성
-│   ├── gpt_qa.py           # GPT Q&A 생성
-│   ├── text_cleaner.py     # 텍스트 정제
-│   ├── drive_uploader.py   # Google Drive 업로드
-│   └── export_grok.py      # Grok 연동
-└── .streamlit/
-    └── secrets.toml         # 환경 변수 (로컬용)
-```
-
-## 🚀 배포 옵션
-
-### Streamlit Cloud (추천)
-- 무료 호스팅
-- GitHub 연동 자동 배포
-- 간편한 환경 변수 관리
-
-### Hugging Face Spaces
-- 무료 호스팅
-- GPU 지원 (유료)
-- 커뮤니티 공유 용이
-
-### Heroku/Railway
-- 더 많은 커스터마이징 가능
-- 데이터베이스 연동 용이
-
-## 📝 라이선스
-
-MIT License
+- **Python**: 3.11+
+- **메모리**: 최소 512MB
+- **디스크**: 100MB 여유 공간
+- **네트워크**: OpenAI API 접속 필요
 
 ## 🤝 기여하기
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. Fork 저장소
+2. 기능 브랜치 생성 (`git checkout -b feature/AmazingFeature`)
+3. 변경사항 커밋 (`git commit -m 'Add some AmazingFeature'`)
+4. 브랜치에 푸시 (`git push origin feature/AmazingFeature`)
+5. Pull Request 생성
 
-## 📞 문의
+## 📄 라이선스
 
-프로젝트 관련 문의사항이 있으시면 Issues를 통해 연락해주세요.
+MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
+
+## 🙋‍♂️ 지원
+
+- **이슈 리포트**: [GitHub Issues](https://github.com/yhun1542/hangulpdf-ai/issues)
+- **기능 요청**: [GitHub Discussions](https://github.com/yhun1542/hangulpdf-ai/discussions)
 
 ---
 
-**HangulPDF AI Converter** - 한글 PDF 문서를 AI 시대에 맞게 변환하는 도구 🚀
+**Made with ❤️ for Korean PDF documents**
 
