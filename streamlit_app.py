@@ -867,7 +867,9 @@ def process_pdf_locally(request_data):
         
     except Exception as e:
         st.error(f"❌ 처리 중 예상치 못한 오류: {str(e)}")
-        return {'error': f'PDF 처리 중 오류가 발생했습니다:# 자동 AI 분석 및 ZIP 생성 함수
+        return {'error': f'PDF 처리 중 오류가 발생했습니다: {str(e)}'}
+
+# 자동 AI 분석 및 ZIP 생성 함수
 def auto_analyze_and_create_zip(extracted_text, pdf_bytes, filename_base, api_key):
     """자동으로 AI 분석을 수행하고 ZIP 파일을 생성"""
     try:
