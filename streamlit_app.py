@@ -55,9 +55,9 @@ def extract_text_with_ocr(pdf_bytes):
     except Exception as e:
         return f"OCR 처리 중 오류: {str(e)}"
 
-# 로컬 PDF 처리 함수 (OCR 및 진행률 표시 추가)
+# 로컬 PDF 처리 함수 (사용자 선택 OCR 옵션 포함)
 def process_pdf_locally(request_data, progress_callback=None):
-    """PDF를 로컬에서 직접 처리하는 함수 (OCR 및 진행률 표시 포함)"""
+    """PDF를 로컬에서 직접 처리하는 함수 (사용자 선택 OCR 옵션 포함)"""
     try:
         import pdfplumber
         import openai
@@ -82,15 +82,24 @@ def process_pdf_locally(request_data, progress_callback=None):
         except Exception as e:
             st.warning(f"기본 텍스트 추출 실패: {str(e)}")
         
-        # 텍스트가 충분하지 않으면 OCR 시도
-        if len(extracted_text.strip()) < 100 and OCR_AVAILABLE:
+        # 사용자가 OCR 옵션을 선택한 경우에만 OCR 실행
+        if request_data['options'].get('use_ocr') and OCR_AVAILABLE:
             if progress_callback:
                 progress_callback("OCR을 사용한 텍스트 추출 중...", 0.4)
             
             ocr_text = extract_text_with_ocr(file_content)
-            if ocr_text and len(ocr_text.strip()) > len(extracted_text.strip()):
-                extracted_text = ocr_text
-                st.info("📷 OCR을 사용하여 텍스트를 추출했습니다.")
+            if ocr_text and not ocr_text.startswith("OCR 처리 중 오류"):
+                # OCR 결과가 있으면 기본 텍스트와 결합하거나 대체
+                if len(extracted_text.strip()) < 100:
+                    # 기본 텍스트가 부족하면 OCR 텍스트로 대체
+                    extracted_text = ocr_text
+                    st.info("📷 OCR을 사용하여 텍스트를 추출했습니다.")
+                else:
+                    # 기본 텍스트가 충분하면 OCR 텍스트를 추가
+                    extracted_text += "\n\n=== OCR 추출 텍스트 ===\n" + ocr_text
+                    st.info("📷 기본 텍스트 추출과 OCR을 모두 사용했습니다.")
+            else:
+                st.warning("OCR 텍스트 추출에 실패했습니다.")
         
         result = {"extracted_text": extracted_text}
         
@@ -360,7 +369,7 @@ if not openai_api_key:
 st.sidebar.header("🚀 주요 기능")
 st.sidebar.markdown("""
 - 📄 **텍스트 추출**: PDF에서 텍스트 자동 추출
-- 🔍 **OCR 지원**: 이미지 기반 PDF 처리
+- 🔍 **OCR 지원**: 이미지 기반 PDF 처리 (선택 옵션)
 - 🤖 **AI 요약**: OpenAI를 활용한 문서 요약
 - ❓ **Q&A 생성**: 자동 질문-답변 생성
 - 📱 **모바일 지원**: 다양한 디바이스에서 사용 가능
@@ -400,9 +409,23 @@ with tab1:
         with col1:
             extract_text = st.checkbox("📝 텍스트 추출", value=True)
             generate_summary = st.checkbox("📋 요약 생성", value=True, disabled=not openai_api_key)
+            # OCR 옵션 추가
+            use_ocr = st.checkbox(
+                "🔍 OCR 사용", 
+                value=False, 
+                disabled=not OCR_AVAILABLE,
+                help="이미지 기반 PDF나 스캔된 문서에서 텍스트를 추출합니다. 처리 시간이 더 오래 걸릴 수 있습니다."
+            )
         with col2:
             generate_qa = st.checkbox("❓ 질문-답변 생성", value=False, disabled=not openai_api_key)
             clean_text = st.checkbox("🧹 텍스트 정제", value=True)
+        
+        # OCR 옵션 설명
+        if OCR_AVAILABLE:
+            if use_ocr:
+                st.info("🔍 **OCR 모드**: 이미지 기반 PDF에서도 텍스트를 추출합니다. 처리 시간이 더 오래 걸릴 수 있습니다.")
+            else:
+                st.info("📄 **기본 모드**: 텍스트 기반 PDF에서만 텍스트를 추출합니다. 빠른 처리가 가능합니다.")
         
         # 변환 실행
         if st.button("🚀 변환 시작", type="primary", use_container_width=True):
@@ -431,7 +454,8 @@ with tab1:
                             "extract_text": extract_text,
                             "generate_summary": generate_summary,
                             "generate_qa": generate_qa,
-                            "clean_text": clean_text
+                            "clean_text": clean_text,
+                            "use_ocr": use_ocr  # OCR 옵션 추가
                         },
                         "openai_api_key": openai_api_key
                     }
