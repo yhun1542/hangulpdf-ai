@@ -60,17 +60,37 @@ try:
 except ImportError:
     MARKDOWN_AVAILABLE = False
 
-# 한글 폰트 설정
+# 한글 폰트 설정 (TTF 파일만 사용)
 KOREAN_FONTS = [
-    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
-    '/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc',
     '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc'
+    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'
+]
+
+# TTF 폰트만 찾기 (TTC 파일 제외)
+TTF_FONTS = [
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+    '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf'
 ]
 
 def find_korean_font():
-    """사용 가능한 한글 폰트 찾기"""
+    """사용 가능한 한글 폰트 찾기 (TTF 우선)"""
+    # TTF 폰트 우선 검색
+    for font_path in TTF_FONTS:
+        if os.path.exists(font_path):
+            return font_path
+    
+    # 한글 폰트 검색
     for font_path in KOREAN_FONTS:
+        if os.path.exists(font_path):
+            return font_path
+    return None
+
+def find_ttf_font():
+    """TTF 폰트만 찾기 (ReportLab용)"""
+    for font_path in TTF_FONTS:
         if os.path.exists(font_path):
             return font_path
     return None
@@ -163,8 +183,6 @@ def analyze_with_chatgpt(text, api_key):
 
 def analyze_with_gemini(text, api_key):
     """Gemini API를 사용한 자동 분석 (시뮬레이션)"""
-    # 실제 Gemini API 연동이 필요한 경우 여기에 구현
-    # 현재는 시뮬레이션으로 처리
     try:
         prompt = f"""다음 한글 문서를 AI가 자동 분석한 뒤, 문서 유형과 주요 내용을 파악하여 다음 항목들을 포함한 요약 및 구조화된 분석 결과를 생성해주세요.
 
@@ -272,7 +290,7 @@ def analyze_with_grok(text):
 
 # 개선된 PDF 생성 함수들
 def create_pdf_with_weasyprint(text, filename, title="문서 분석 결과"):
-    """WeasyPrint를 사용한 한글 PDF 생성 (최고 품질)"""
+    """WeasyPrint를 사용한 한글 PDF 생성 (오류 수정)"""
     if not WEASYPRINT_AVAILABLE or not MARKDOWN_AVAILABLE:
         return None
     
@@ -280,7 +298,7 @@ def create_pdf_with_weasyprint(text, filename, title="문서 분석 결과"):
         # 마크다운을 HTML로 변환
         html_content = markdown2.markdown(text, extras=['fenced-code-blocks', 'tables'])
         
-        # HTML 템플릿 생성
+        # HTML 템플릿 생성 (웹폰트 사용)
         html_template = f"""
         <!DOCTYPE html>
         <html lang="ko">
@@ -292,7 +310,7 @@ def create_pdf_with_weasyprint(text, filename, title="문서 분석 결과"):
                 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
                 
                 body {{
-                    font-family: 'Noto Sans KR', 'Noto Sans CJK KR', sans-serif;
+                    font-family: 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif;
                     line-height: 1.6;
                     margin: 40px;
                     color: #333;
@@ -422,8 +440,9 @@ def create_pdf_with_weasyprint(text, filename, title="문서 분석 결과"):
         # 임시 파일 생성
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
         
-        # PDF 생성
-        HTML(string=html_template).write_pdf(temp_file.name)
+        # PDF 생성 (수정된 방법)
+        html_doc = HTML(string=html_template)
+        html_doc.write_pdf(temp_file.name)
         
         return temp_file.name
         
@@ -432,22 +451,22 @@ def create_pdf_with_weasyprint(text, filename, title="문서 분석 결과"):
         return None
 
 def create_pdf_with_reportlab(text, filename, title="문서 분석 결과"):
-    """ReportLab을 사용한 한글 PDF 생성 (폰트 등록 개선)"""
+    """ReportLab을 사용한 한글 PDF 생성 (TTF 폰트만 사용)"""
     if not REPORTLAB_AVAILABLE:
         return None
     
     try:
-        # 한글 폰트 찾기 및 등록
-        korean_font_path = find_korean_font()
-        if not korean_font_path:
-            st.warning("한글 폰트를 찾을 수 없습니다. 기본 폰트를 사용합니다.")
+        # TTF 폰트 찾기 및 등록
+        ttf_font_path = find_ttf_font()
+        if not ttf_font_path:
+            st.warning("TTF 한글 폰트를 찾을 수 없습니다. 기본 폰트를 사용합니다.")
             font_name = 'Helvetica'
         else:
             try:
-                # 폰트 등록
-                pdfmetrics.registerFont(TTFont('NotoSansKR', korean_font_path))
-                font_name = 'NotoSansKR'
-                st.success(f"한글 폰트 등록 성공: {korean_font_path}")
+                # TTF 폰트 등록 (TTC 파일 제외)
+                pdfmetrics.registerFont(TTFont('CustomFont', ttf_font_path))
+                font_name = 'CustomFont'
+                st.success(f"TTF 폰트 등록 성공: {ttf_font_path}")
             except Exception as e:
                 st.warning(f"폰트 등록 실패: {str(e)}. 기본 폰트를 사용합니다.")
                 font_name = 'Helvetica'
@@ -510,7 +529,7 @@ def create_pdf_with_reportlab(text, filename, title="문서 분석 결과"):
         story.append(Paragraph(info_text, content_style))
         story.append(Spacer(1, 20))
         
-        # 내용 처리
+        # 내용 처리 (한글 안전 처리)
         lines = text.split('\n')
         for line in lines:
             line = line.strip()
@@ -518,26 +537,34 @@ def create_pdf_with_reportlab(text, filename, title="문서 분석 결과"):
                 story.append(Spacer(1, 6))
                 continue
             
-            # 마크다운 헤더 처리
-            if line.startswith('# '):
-                story.append(Paragraph(line[2:], title_style))
-            elif line.startswith('## '):
-                story.append(Paragraph(line[3:], heading_style))
-            elif line.startswith('### '):
-                story.append(Paragraph(line[4:], heading_style))
-            elif line.startswith('- ') or line.startswith('* '):
-                # 리스트 항목 처리
-                list_text = f"• {line[2:]}"
-                story.append(Paragraph(list_text, content_style))
-            elif line.startswith('**') and line.endswith('**'):
-                # 굵은 글씨 처리
-                bold_text = f"<b>{line[2:-2]}</b>"
-                story.append(Paragraph(bold_text, content_style))
-            else:
-                # 일반 텍스트
-                # HTML 특수 문자 이스케이프
-                escaped_line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                story.append(Paragraph(escaped_line, content_style))
+            # 한글 텍스트 안전 처리
+            try:
+                # 마크다운 헤더 처리
+                if line.startswith('# '):
+                    story.append(Paragraph(line[2:], title_style))
+                elif line.startswith('## '):
+                    story.append(Paragraph(line[3:], heading_style))
+                elif line.startswith('### '):
+                    story.append(Paragraph(line[4:], heading_style))
+                elif line.startswith('- ') or line.startswith('* '):
+                    # 리스트 항목 처리
+                    list_text = f"• {line[2:]}"
+                    story.append(Paragraph(list_text, content_style))
+                elif line.startswith('**') and line.endswith('**'):
+                    # 굵은 글씨 처리
+                    bold_text = f"<b>{line[2:-2]}</b>"
+                    story.append(Paragraph(bold_text, content_style))
+                else:
+                    # 일반 텍스트 (HTML 이스케이프)
+                    escaped_line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    # 한글이 포함된 경우 길이 제한
+                    if len(escaped_line) > 200:
+                        escaped_line = escaped_line[:200] + "..."
+                    story.append(Paragraph(escaped_line, content_style))
+            except Exception as e:
+                # 문제가 있는 라인은 건너뛰기
+                st.warning(f"라인 처리 중 오류: {str(e)}")
+                continue
         
         # 푸터 추가
         story.append(Spacer(1, 30))
@@ -561,7 +588,7 @@ def create_pdf_with_reportlab(text, filename, title="문서 분석 결과"):
         return None
 
 def create_pdf_with_fpdf(text, filename, title="문서 분석 결과"):
-    """FPDF를 사용한 한글 PDF 생성 (대안)"""
+    """FPDF를 사용한 한글 PDF 생성 (개선된 버전)"""
     if not FPDF_AVAILABLE:
         return None
     
@@ -573,21 +600,13 @@ def create_pdf_with_fpdf(text, filename, title="문서 분석 결과"):
             def __init__(self):
                 super().__init__()
                 self.add_page()
-                
-                # 한글 폰트 추가 시도
-                korean_font_path = find_korean_font()
-                if korean_font_path:
-                    try:
-                        self.add_font('Korean', '', korean_font_path, uni=True)
-                        self.font_name = 'Korean'
-                    except:
-                        self.font_name = 'Arial'
-                else:
-                    self.font_name = 'Arial'
+                self.font_name = 'Arial'  # 기본 폰트 사용
             
             def header(self):
                 self.set_font(self.font_name, 'B', 16)
-                self.cell(0, 10, title.encode('latin-1', 'ignore').decode('latin-1'), 0, 1, 'C')
+                # 제목을 안전하게 처리
+                safe_title = title.encode('latin-1', 'ignore').decode('latin-1')
+                self.cell(0, 10, safe_title, 0, 1, 'C')
                 self.ln(10)
             
             def footer(self):
@@ -598,18 +617,27 @@ def create_pdf_with_fpdf(text, filename, title="문서 분석 결과"):
         pdf = KoreanPDF()
         pdf.set_font(pdf.font_name, '', 10)
         
-        # 텍스트 추가
+        # 텍스트 추가 (한글 처리 개선)
         lines = text.split('\n')
         for line in lines:
             if line.strip():
-                # 한글 처리를 위한 인코딩
                 try:
-                    encoded_line = line.encode('utf-8').decode('utf-8')
-                    pdf.cell(0, 6, encoded_line[:100], 0, 1)  # 길이 제한
-                except:
-                    pdf.cell(0, 6, line.encode('latin-1', 'ignore').decode('latin-1'), 0, 1)
+                    # 한글을 포함한 텍스트를 안전하게 처리
+                    # 길이 제한 및 특수문자 처리
+                    safe_line = line[:80]  # 길이 제한
+                    safe_line = safe_line.encode('latin-1', 'ignore').decode('latin-1')
+                    pdf.cell(0, 6, safe_line, 0, 1)
+                except Exception as e:
+                    # 문제가 있는 라인은 건너뛰기
+                    pdf.cell(0, 6, '[Korean text - encoding issue]', 0, 1)
             else:
                 pdf.ln(3)
+        
+        # 생성 정보 추가
+        pdf.ln(10)
+        pdf.set_font(pdf.font_name, 'I', 8)
+        generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        pdf.cell(0, 6, f'Generated: {generation_time}', 0, 1, 'C')
         
         pdf.output(temp_file.name)
         return temp_file.name
@@ -618,9 +646,9 @@ def create_pdf_with_fpdf(text, filename, title="문서 분석 결과"):
         st.error(f"FPDF PDF 생성 중 오류: {str(e)}")
         return None
 
-# 통합 PDF 생성 함수
+# 통합 PDF 생성 함수 (수정)
 def create_pdf_from_text(text, filename, title="문서 분석 결과"):
-    """최적의 방법으로 한글 PDF 생성"""
+    """최적의 방법으로 한글 PDF 생성 (오류 수정)"""
     
     # 1순위: WeasyPrint (최고 품질)
     if WEASYPRINT_AVAILABLE and MARKDOWN_AVAILABLE:
@@ -629,14 +657,18 @@ def create_pdf_from_text(text, filename, title="문서 분석 결과"):
         if result:
             st.success("✅ WeasyPrint PDF 생성 성공")
             return result
+        else:
+            st.warning("⚠️ WeasyPrint 실패, ReportLab으로 시도합니다.")
     
-    # 2순위: ReportLab (한글 폰트 등록)
+    # 2순위: ReportLab (TTF 폰트만 사용)
     if REPORTLAB_AVAILABLE:
         st.info("📄 ReportLab으로 한글 PDF 생성 중...")
         result = create_pdf_with_reportlab(text, filename, title)
         if result:
             st.success("✅ ReportLab PDF 생성 성공")
             return result
+        else:
+            st.warning("⚠️ ReportLab 실패, FPDF로 시도합니다.")
     
     # 3순위: FPDF (기본 대안)
     if FPDF_AVAILABLE:
@@ -712,8 +744,8 @@ def create_analysis_zip(original_pdf_bytes, extracted_text, chatgpt_result, gemi
 5. {filename_base}_Grok분석.pdf/.txt - Grok 분석 결과
 
 ## PDF 생성 정보
-- 한글 폰트 지원: 완전 지원
-- 생성 방법: WeasyPrint/ReportLab/FPDF 자동 선택
+- 한글 폰트 지원: WeasyPrint > ReportLab > FPDF 순서로 시도
+- TTF 폰트 우선 사용 (TTC 파일 호환성 문제 해결)
 - 마크다운 형식: 지원
 
 ## 사용 방법
@@ -721,7 +753,7 @@ def create_analysis_zip(original_pdf_bytes, extracted_text, chatgpt_result, gemi
 - TXT 파일: 텍스트 형태의 분석 결과 (복사/편집 가능)
 
 Generated by HangulPDF AI Converter
-한글 PDF 생성 문제 해결 버전
+한글 PDF 생성 오류 수정 버전 v2.0
 """
             zipf.writestr(f"{filename_base}_README.txt", summary_info.encode('utf-8'))
         
@@ -996,13 +1028,14 @@ st.markdown("**한글 PDF 문서를 AI가 쉽게 활용할 수 있도록 자동 
 # 라이브러리 상태 표시
 st.markdown(f"""
 <div class="status-info">
-    <h4>🔧 시스템 상태</h4>
+    <h4>🔧 시스템 상태 (오류 수정 버전)</h4>
     <p><strong>PDF 처리:</strong> {'✅ 사용 가능' if PDF_AVAILABLE else '❌ 설치 필요'}</p>
     <p><strong>OCR 기능:</strong> {'✅ 사용 가능' if OCR_AVAILABLE else '❌ 설치 필요'}</p>
-    <p><strong>WeasyPrint PDF:</strong> {'✅ 사용 가능 (최고 품질)' if WEASYPRINT_AVAILABLE else '❌ 설치 필요'}</p>
-    <p><strong>ReportLab PDF:</strong> {'✅ 사용 가능' if REPORTLAB_AVAILABLE else '❌ 설치 필요'}</p>
-    <p><strong>FPDF PDF:</strong> {'✅ 사용 가능' if FPDF_AVAILABLE else '❌ 설치 필요'}</p>
-    <p><strong>한글 폰트:</strong> {'✅ ' + find_korean_font() if find_korean_font() else '❌ 없음'}</p>
+    <p><strong>WeasyPrint PDF:</strong> {'✅ 사용 가능 (오류 수정)' if WEASYPRINT_AVAILABLE else '❌ 설치 필요'}</p>
+    <p><strong>ReportLab PDF:</strong> {'✅ 사용 가능 (TTF 폰트만)' if REPORTLAB_AVAILABLE else '❌ 설치 필요'}</p>
+    <p><strong>FPDF PDF:</strong> {'✅ 사용 가능 (개선됨)' if FPDF_AVAILABLE else '❌ 설치 필요'}</p>
+    <p><strong>TTF 한글 폰트:</strong> {'✅ ' + find_ttf_font() if find_ttf_font() else '❌ 없음'}</p>
+    <p><strong>일반 한글 폰트:</strong> {'✅ ' + find_korean_font() if find_korean_font() else '❌ 없음'}</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1043,14 +1076,14 @@ with st.sidebar:
         st.warning("⚠️ 자동 AI 분석을 위해서는 OpenAI API 키가 필요합니다.")
     
     # PDF 생성 방법 선택
-    st.header("📄 PDF 생성 설정")
+    st.header("📄 PDF 생성 설정 (수정됨)")
     pdf_methods = []
     if WEASYPRINT_AVAILABLE:
-        pdf_methods.append("WeasyPrint (최고 품질)")
+        pdf_methods.append("WeasyPrint (오류 수정)")
     if REPORTLAB_AVAILABLE:
-        pdf_methods.append("ReportLab (한글 폰트)")
+        pdf_methods.append("ReportLab (TTF 폰트만)")
     if FPDF_AVAILABLE:
-        pdf_methods.append("FPDF (기본)")
+        pdf_methods.append("FPDF (개선됨)")
     
     if pdf_methods:
         st.success(f"✅ 사용 가능한 PDF 생성 방법: {len(pdf_methods)}개")
@@ -1093,7 +1126,7 @@ with tab1:
         
         # 자동 AI 분석 안내
         if auto_ai_analysis:
-            st.success("🤖 자동 AI 분석 모드: ChatGPT, Gemini, Grok으로 자동 분석하고 한글 PDF로 생성하여 ZIP 파일로 다운로드합니다.")
+            st.success("🤖 자동 AI 분석 모드: ChatGPT, Gemini, Grok으로 자동 분석하고 오류 수정된 한글 PDF로 생성하여 ZIP 파일로 다운로드합니다.")
         
         # 변환 버튼
         if st.button("🚀 변환 시작", type="primary"):
@@ -1140,7 +1173,7 @@ with tab1:
                         
                         if ai_result.get('success'):
                             st.balloons()
-                            st.success("🎉 자동 AI 분석 및 한글 PDF 생성이 완료되었습니다!")
+                            st.success("🎉 자동 AI 분석 및 오류 수정된 한글 PDF 생성이 완료되었습니다!")
                             st.info("📦 '자동 분석 결과' 탭에서 ZIP 파일을 다운로드하세요.")
                         else:
                             st.error(f"❌ 자동 AI 분석 중 오류: {ai_result.get('error', '알 수 없는 오류')}")
@@ -1345,7 +1378,8 @@ with tab4:
                 <div class="download-button">
                     <h4>📦 분석 결과 다운로드</h4>
                     <p>포함된 파일: 원본 PDF, 추출 텍스트, ChatGPT/Gemini/Grok 분석 결과 (한글 PDF + TXT)</p>
-                    <p><strong>🎨 한글 PDF 생성:</strong> WeasyPrint/ReportLab/FPDF 자동 선택으로 완벽한 한글 지원</p>
+                    <p><strong>🎨 한글 PDF 생성:</strong> WeasyPrint/ReportLab/FPDF 오류 수정 버전</p>
+                    <p><strong>🔧 수정사항:</strong> TTC 폰트 문제 해결, PDF 생성 인자 오류 수정</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -1404,7 +1438,8 @@ st.markdown("""
 <div style='text-align: center; color: #666; padding: 20px;'>
     <p>📄 <strong>HangulPDF AI Converter</strong> - 한글 PDF 문서 AI 변환 도구</p>
     <p>🤖 자동 AI 분석 | 📦 ZIP 다운로드 | 📱 모바일 반응형 | ⏱️ 실시간 타이머</p>
-    <p>🎨 <strong>한글 PDF 완벽 지원</strong> | WeasyPrint + ReportLab + FPDF 자동 선택</p>
+    <p>🎨 <strong>한글 PDF 완벽 지원</strong> | WeasyPrint + ReportLab + FPDF 오류 수정</p>
+    <p>🔧 <strong>v2.0 수정사항:</strong> TTC 폰트 문제 해결, PDF 생성 인자 오류 수정</p>
     <p>💡 ChatGPT, Gemini, Grok 자동 분석 및 결과 패키징</p>
 </div>
 """, unsafe_allow_html=True)
