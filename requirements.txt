@@ -7,4 +7,4 @@ pytesseract
 pdf2image
 opencv-python-headless
 numpy
-PyPDF2
+PyPDF2reportlab==4.0.4
