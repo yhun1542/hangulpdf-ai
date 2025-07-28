@@ -6,39 +6,6 @@ from io import BytesIO
 import base64
 import streamlit.components.v1 as components
 
-# 복사 버튼 HTML/JavaScript 함수
-def create_copy_button(text_content, button_id):
-    """복사 버튼을 생성하는 함수"""
-    # 텍스트 내용을 안전하게 이스케이프 처리
-    escaped_text = text_content.replace('\\', '\\\\').replace('`', '\\`').replace('$', '\\$').replace('"', '\\"').replace("'", "\\'")
-    
-    copy_button_html = f"""
-    <div style="display: flex; align-items: center; margin-bottom: 10px;">
-        <button id="{button_id}" onclick="copyToClipboard_{button_id}()" 
-                style="background-color: #ff4b4b; color: white; border: none; 
-                       padding: 5px 10px; border-radius: 5px; cursor: pointer; 
-                       font-size: 12px; margin-left: 10px;">
-            📋 복사하기
-        </button>
-    </div>
-    <script>
-    function copyToClipboard_{button_id}() {{
-        const text = "{escaped_text}";
-        navigator.clipboard.writeText(text).then(function() {{
-            document.getElementById('{button_id}').innerHTML = '✅ 복사됨!';
-            document.getElementById('{button_id}').style.backgroundColor = '#00cc44';
-            setTimeout(function() {{
-                document.getElementById('{button_id}').innerHTML = '📋 복사하기';
-                document.getElementById('{button_id}').style.backgroundColor = '#ff4b4b';
-            }}, 2000);
-        }}, function(err) {{
-            alert('복사 실패: ' + err);
-        }});
-    }}
-    </script>
-    """
-    return copy_button_html
-
 # 로컬 PDF 처리 함수 (상단으로 이동)
 def process_pdf_locally(request_data):
     """PDF를 로컬에서 직접 처리하는 함수"""
@@ -285,7 +252,6 @@ with tab3:
                 
                 if 'extracted_text' in result:
                     # ChatGPT 프롬프트 (전체 텍스트 표시)
-                    st.markdown("**💬 ChatGPT 프롬프트:**")
                     chatgpt_prompt = f"""다음 한글 문서를 AI가 자동 분석한 뒤, 문서 유형과 주요 내용을 파악하여 다음 항목들을 포함한 요약 및 구조화된 분석 결과를 생성해주세요.
 
 {result['extracted_text']}
@@ -324,8 +290,13 @@ with tab3:
 
 문서를 사람이 읽지 않고도 전체적 흐름과 인사이트를 파악할 수 있도록 분석해주세요."""
                     
-                    # 복사 버튼
-                    components.html(create_copy_button(chatgpt_prompt, "chatgpt_copy"), height=50)
+                    # ChatGPT 프롬프트 섹션
+                    col_chatgpt1, col_chatgpt2 = st.columns([4, 1])
+                    with col_chatgpt1:
+                        st.markdown("**💬 ChatGPT 프롬프트:**")
+                    with col_chatgpt2:
+                        if st.button("📋 복사", key="copy_chatgpt"):
+                            st.success("텍스트 박스에서 Ctrl+A → Ctrl+C로 복사하세요!")
                     
                     st.text_area(
                         "ChatGPT에 복사하여 사용하세요:", 
@@ -335,7 +306,6 @@ with tab3:
                     )
                     
                     # Gemini 프롬프트
-                    st.markdown("**🔮 Gemini 프롬프트:**")
                     gemini_prompt = f"""다음 한글 문서를 AI가 자동 분석한 뒤, 문서 유형과 주요 내용을 파악하여 다음 항목들을 포함한 요약 및 구조화된 분석 결과를 생성해주세요.
 
 {result['extracted_text']}
@@ -374,8 +344,13 @@ with tab3:
 
 문서를 사람이 읽지 않고도 전체적 흐름과 인사이트를 파악할 수 있도록 분석해주세요."""
                     
-                    # 복사 버튼
-                    components.html(create_copy_button(gemini_prompt, "gemini_copy"), height=50)
+                    # Gemini 프롬프트 섹션
+                    col_gemini1, col_gemini2 = st.columns([4, 1])
+                    with col_gemini1:
+                        st.markdown("**🔮 Gemini 프롬프트:**")
+                    with col_gemini2:
+                        if st.button("📋 복사", key="copy_gemini"):
+                            st.success("텍스트 박스에서 Ctrl+A → Ctrl+C로 복사하세요!")
                     
                     st.text_area(
                         "Gemini에 복사하여 사용하세요:", 
@@ -385,7 +360,6 @@ with tab3:
                     )
                     
                     # Grok 프롬프트
-                    st.markdown("**🚀 Grok 프롬프트:**")
                     grok_prompt = f"""Hey Grok, analyze this Korean document:
 
 {result['extracted_text']}
@@ -396,8 +370,13 @@ Please provide:
 - Potential follow-up questions
 - Creative perspectives on the content"""
                     
-                    # 복사 버튼
-                    components.html(create_copy_button(grok_prompt, "grok_copy"), height=50)
+                    # Grok 프롬프트 섹션
+                    col_grok1, col_grok2 = st.columns([4, 1])
+                    with col_grok1:
+                        st.markdown("**🚀 Grok 프롬프트:**")
+                    with col_grok2:
+                        if st.button("📋 복사", key="copy_grok"):
+                            st.success("텍스트 박스에서 Ctrl+A → Ctrl+C로 복사하세요!")
                     
                     st.text_area(
                         "Grok에 복사하여 사용하세요:", 
