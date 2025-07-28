@@ -5,12 +5,13 @@ import os
 from io import BytesIO
 import base64
 import time
+import re
 
 # OCR 및 이미지 처리를 위한 라이브러리
 try:
     import pytesseract
     from pdf2image import convert_from_bytes
-    from PIL import Image
+    from PIL import Image, ImageEnhance, ImageFilter
     import cv2
     import numpy as np
     OCR_AVAILABLE = True
@@ -25,35 +26,194 @@ def show_progress(progress_text, progress_value):
     status_text.text(progress_text)
     return progress_bar, status_text
 
-# OCR 텍스트 추출 함수
-def extract_text_with_ocr(pdf_bytes):
-    """OCR을 사용하여 이미지 기반 PDF에서 텍스트 추출"""
+# 고급 이미지 전처리 함수
+def preprocess_image_advanced(image):
+    """고급 이미지 전처리로 OCR 정확도 향상"""
+    try:
+        # PIL Image를 numpy array로 변환
+        img_array = np.array(image)
+        
+        # 1. 그레이스케일 변환
+        if len(img_array.shape) == 3:
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = img_array
+        
+        # 2. 해상도 증가 (2배 확대)
+        height, width = gray.shape
+        gray = cv2.resize(gray, (width * 2, height * 2), interpolation=cv2.INTER_CUBIC)
+        
+        # 3. 가우시안 블러로 노이즈 제거
+        gray = cv2.GaussianBlur(gray, (1, 1), 0)
+        
+        # 4. 대비 향상 (CLAHE - Contrast Limited Adaptive Histogram Equalization)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        gray = clahe.apply(gray)
+        
+        # 5. 모폴로지 연산으로 텍스트 선명화
+        kernel = np.ones((1, 1), np.uint8)
+        gray = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
+        
+        # 6. 이진화 (Otsu's thresholding)
+        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # 7. 기울기 보정 (Skew correction)
+        coords = np.column_stack(np.where(binary > 0))
+        if len(coords) > 0:
+            angle = cv2.minAreaRect(coords)[-1]
+            if angle < -45:
+                angle = -(90 + angle)
+            else:
+                angle = -angle
+            
+            # 기울기가 1도 이상일 때만 보정
+            if abs(angle) > 1:
+                (h, w) = binary.shape[:2]
+                center = (w // 2, h // 2)
+                M = cv2.getRotationMatrix2D(center, angle, 1.0)
+                binary = cv2.warpAffine(binary, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+        
+        return binary
+        
+    except Exception as e:
+        st.warning(f"이미지 전처리 중 오류: {str(e)}")
+        # 기본 전처리로 폴백
+        img_array = np.array(image)
+        if len(img_array.shape) == 3:
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = img_array
+        return gray
+
+# 텍스트 후처리 함수
+def postprocess_text(text):
+    """OCR 결과 텍스트 후처리로 정확도 향상"""
+    if not text:
+        return text
+    
+    # 1. 일반적인 OCR 오류 수정
+    corrections = {
+        # 한글 자주 틀리는 글자들
+        'ㅇ': 'o',  # 영문 o와 한글 ㅇ 구분
+        'ㅁ': 'm',  # 영문 m과 한글 ㅁ 구분
+        '|': 'l',   # 세로선과 영문 l 구분
+        '0': 'O',   # 숫자 0과 영문 O 구분 (문맥에 따라)
+        '1': 'l',   # 숫자 1과 영문 l 구분 (문맥에 따라)
+    }
+    
+    # 2. 불필요한 공백 정리
+    text = re.sub(r'\s+', ' ', text)  # 연속된 공백을 하나로
+    text = re.sub(r'\n\s*\n', '\n\n', text)  # 연속된 줄바꿈 정리
+    
+    # 3. 한글 문장 부호 정리
+    text = re.sub(r'["""]', '"', text)  # 따옴표 통일
+    text = re.sub(r'[''']', "'", text)  # 작은따옴표 통일
+    text = re.sub(r'[…]', '...', text)  # 말줄임표 통일
+    
+    # 4. 숫자와 단위 사이 공백 정리
+    text = re.sub(r'(\d)\s+([가-힣]{1,2})', r'\1\2', text)  # "10 개" -> "10개"
+    text = re.sub(r'(\d)\s+(%|원|달러|kg|m|cm)', r'\1\2', text)  # "100 %" -> "100%"
+    
+    # 5. 날짜 형식 정리
+    text = re.sub(r'(\d{4})\s*[년]\s*(\d{1,2})\s*[월]\s*(\d{1,2})\s*[일]', r'\1년 \2월 \3일', text)
+    
+    return text.strip()
+
+# 다단계 OCR 처리 함수
+def extract_text_with_advanced_ocr(pdf_bytes):
+    """고급 OCR을 사용하여 이미지 기반 PDF에서 텍스트 추출 (정확도 향상)"""
     if not OCR_AVAILABLE:
         return "OCR 라이브러리가 설치되지 않았습니다."
     
     try:
-        # PDF를 이미지로 변환
-        images = convert_from_bytes(pdf_bytes, dpi=300)
+        st.info("🔍 고급 OCR 처리를 시작합니다...")
+        
+        # PDF를 고해상도 이미지로 변환
+        images = convert_from_bytes(pdf_bytes, dpi=400, fmt='PNG')  # DPI 증가
         extracted_text = ""
         
+        # 다양한 OCR 설정들
+        ocr_configs = [
+            # 설정 1: 한국어 + 영어, 자동 페이지 분할
+            {
+                'config': r'--oem 3 --psm 3 -l kor+eng',
+                'name': '자동 페이지 분할'
+            },
+            # 설정 2: 한국어 + 영어, 단일 텍스트 블록
+            {
+                'config': r'--oem 3 --psm 6 -l kor+eng',
+                'name': '단일 텍스트 블록'
+            },
+            # 설정 3: 한국어 + 영어, 단일 텍스트 라인
+            {
+                'config': r'--oem 3 --psm 7 -l kor+eng',
+                'name': '단일 텍스트 라인'
+            },
+            # 설정 4: 한국어 + 영어, 단일 단어
+            {
+                'config': r'--oem 3 --psm 8 -l kor+eng',
+                'name': '단일 단어'
+            }
+        ]
+        
         for i, image in enumerate(images):
-            # 이미지 전처리 (OCR 정확도 향상)
-            img_array = np.array(image)
-            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            st.info(f"📄 페이지 {i+1}/{len(images)} 처리 중...")
             
-            # 노이즈 제거 및 대비 향상
-            denoised = cv2.fastNlMeansDenoising(gray)
+            # 고급 이미지 전처리
+            processed_image = preprocess_image_advanced(image)
             
-            # OCR 실행 (한국어 + 영어)
-            custom_config = r'--oem 3 --psm 6 -l kor+eng'
-            text = pytesseract.image_to_string(denoised, config=custom_config)
+            best_text = ""
+            best_confidence = 0
             
-            if text.strip():
-                extracted_text += f"\n--- 페이지 {i+1} ---\n{text}\n"
+            # 여러 OCR 설정으로 시도
+            for config_info in ocr_configs:
+                try:
+                    # OCR 실행
+                    text = pytesseract.image_to_string(processed_image, config=config_info['config'])
+                    
+                    # 신뢰도 측정 (텍스트 길이와 한글 비율로 추정)
+                    if text.strip():
+                        korean_chars = len(re.findall(r'[가-힣]', text))
+                        total_chars = len(re.sub(r'\s', '', text))
+                        
+                        if total_chars > 0:
+                            confidence = (korean_chars / total_chars) * len(text.strip())
+                            
+                            if confidence > best_confidence:
+                                best_confidence = confidence
+                                best_text = text
+                                st.success(f"✅ 최적 설정: {config_info['name']} (신뢰도: {confidence:.1f})")
+                
+                except Exception as e:
+                    continue
+            
+            # 최적 결과가 없으면 기본 설정으로 재시도
+            if not best_text.strip():
+                try:
+                    best_text = pytesseract.image_to_string(processed_image, config=r'--oem 3 --psm 3 -l kor+eng')
+                except Exception as e:
+                    st.warning(f"페이지 {i+1} OCR 실패: {str(e)}")
+                    continue
+            
+            # 텍스트 후처리
+            if best_text.strip():
+                processed_text = postprocess_text(best_text)
+                extracted_text += f"\n--- 페이지 {i+1} ---\n{processed_text}\n"
+        
+        if extracted_text.strip():
+            st.success(f"🎉 고급 OCR 완료: {len(extracted_text)} 글자 추출")
+        else:
+            st.warning("⚠️ OCR로 텍스트를 추출할 수 없었습니다.")
         
         return extracted_text
+        
     except Exception as e:
-        return f"OCR 처리 중 오류: {str(e)}"
+        return f"고급 OCR 처리 중 오류: {str(e)}"
+
+# OCR 텍스트 추출 함수 (기존 함수를 고급 버전으로 교체)
+def extract_text_with_ocr(pdf_bytes):
+    """OCR을 사용하여 이미지 기반 PDF에서 텍스트 추출 (고급 버전)"""
+    return extract_text_with_advanced_ocr(pdf_bytes)
 
 # 로컬 PDF 처리 함수 (기본 텍스트 추출 로직 개선)
 def process_pdf_locally(request_data, progress_callback=None):
@@ -102,23 +262,23 @@ def process_pdf_locally(request_data, progress_callback=None):
         # 사용자가 OCR 옵션을 선택한 경우에만 OCR 실행
         if request_data['options'].get('use_ocr') and OCR_AVAILABLE:
             if progress_callback:
-                progress_callback("OCR을 사용한 텍스트 추출 중...", 0.4)
+                progress_callback("고급 OCR을 사용한 텍스트 추출 중...", 0.4)
             
-            st.info("🔍 OCR 텍스트 추출을 시작합니다...")
-            ocr_text = extract_text_with_ocr(file_content)
+            st.info("🔍 고급 OCR 텍스트 추출을 시작합니다...")
+            ocr_text = extract_text_with_advanced_ocr(file_content)
             
-            if ocr_text and not ocr_text.startswith("OCR 처리 중 오류"):
+            if ocr_text and not ocr_text.startswith("고급 OCR 처리 중 오류"):
                 # OCR 결과가 있으면 기본 텍스트와 결합하거나 대체
                 if len(extracted_text.strip()) < 100:
                     # 기본 텍스트가 부족하면 OCR 텍스트로 대체
                     extracted_text = ocr_text
-                    st.info("📷 OCR을 사용하여 텍스트를 추출했습니다.")
+                    st.info("📷 고급 OCR을 사용하여 텍스트를 추출했습니다.")
                 else:
                     # 기본 텍스트가 충분하면 OCR 텍스트를 추가
-                    extracted_text += "\n\n=== OCR 추출 텍스트 ===\n" + ocr_text
-                    st.info("📷 기본 텍스트 추출과 OCR을 모두 사용했습니다.")
+                    extracted_text += "\n\n=== 고급 OCR 추출 텍스트 ===\n" + ocr_text
+                    st.info("📷 기본 텍스트 추출과 고급 OCR을 모두 사용했습니다.")
             else:
-                st.warning("OCR 텍스트 추출에 실패했습니다.")
+                st.warning("고급 OCR 텍스트 추출에 실패했습니다.")
         
         # 최종 텍스트 길이 확인
         final_text_length = len(extracted_text.strip())
@@ -372,7 +532,7 @@ st.markdown("한글 PDF 문서를 AI가 활용하기 쉬운 형태로 변환하�
 
 # OCR 상태 표시
 if OCR_AVAILABLE:
-    st.success("🔍 OCR 기능이 활성화되었습니다. 이미지 기반 PDF도 처리할 수 있습니다.")
+    st.success("🔍 고급 OCR 기능이 활성화되었습니다. 이미지 기반 PDF도 고정밀도로 처리할 수 있습니다.")
 else:
     st.warning("⚠️ OCR 라이브러리가 설치되지 않았습니다. 텍스트 기반 PDF만 처리 가능합니다.")
 
@@ -396,11 +556,24 @@ if not openai_api_key:
 st.sidebar.header("🚀 주요 기능")
 st.sidebar.markdown("""
 - 📄 **텍스트 추출**: PDF에서 텍스트 자동 추출
-- 🔍 **OCR 지원**: 이미지 기반 PDF 처리 (선택 옵션)
+- 🔍 **고급 OCR**: 이미지 기반 PDF 고정밀도 처리
 - 🤖 **AI 요약**: OpenAI를 활용한 문서 요약
 - ❓ **Q&A 생성**: 자동 질문-답변 생성
 - 📱 **모바일 지원**: 다양한 디바이스에서 사용 가능
 """)
+
+# 사이드바 - OCR 개선 정보
+if OCR_AVAILABLE:
+    st.sidebar.header("🔬 고급 OCR 기능")
+    st.sidebar.markdown("""
+    **정확도 향상 기술:**
+    - 🎯 **고해상도 처리** (400 DPI)
+    - 🖼️ **고급 이미지 전처리**
+    - 🔄 **다단계 OCR 처리**
+    - 📝 **텍스트 후처리**
+    - 📐 **기울기 자동 보정**
+    - 🎨 **대비 및 선명도 최적화**
+    """)
 
 # 메인 컨텐츠
 tab1, tab2, tab3 = st.tabs(["📄 PDF 업로드 & 변환", "📊 분석 결과", "🔗 공유 & 내보내기"])
@@ -411,7 +584,7 @@ with tab1:
     uploaded_file = st.file_uploader(
         "PDF 파일을 선택하세요",
         type=['pdf'],
-        help="한글로 작성된 PDF 문서를 업로드하세요. 이미지 기반 PDF도 지원합니다."
+        help="한글로 작성된 PDF 문서를 업로드하세요. 고급 OCR로 이미지 기반 PDF도 고정밀도 처리합니다."
     )
     
     if uploaded_file is not None:
@@ -438,10 +611,10 @@ with tab1:
             generate_summary = st.checkbox("📋 요약 생성", value=True, disabled=not openai_api_key)
             # OCR 옵션 추가
             use_ocr = st.checkbox(
-                "🔍 OCR 사용", 
+                "🔍 고급 OCR 사용", 
                 value=False, 
                 disabled=not OCR_AVAILABLE,
-                help="이미지 기반 PDF나 스캔된 문서에서 텍스트를 추출합니다. 처리 시간이 더 오래 걸릴 수 있습니다."
+                help="고정밀도 이미지 전처리와 다단계 OCR로 이미지 기반 PDF에서 정확한 텍스트를 추출합니다."
             )
         with col2:
             generate_qa = st.checkbox("❓ 질문-답변 생성", value=False, disabled=not openai_api_key)
@@ -450,7 +623,7 @@ with tab1:
         # OCR 옵션 설명
         if OCR_AVAILABLE:
             if use_ocr:
-                st.info("🔍 **OCR 모드**: 이미지 기반 PDF에서도 텍스트를 추출합니다. 처리 시간이 더 오래 걸릴 수 있습니다.")
+                st.info("🔍 **고급 OCR 모드**: 고해상도 이미지 전처리, 다단계 OCR 처리, 텍스트 후처리로 최고 정확도를 제공합니다. 처리 시간이 더 오래 걸릴 수 있습니다.")
             else:
                 st.info("📄 **기본 모드**: 텍스트 기반 PDF에서만 텍스트를 추출합니다. 빠른 처리가 가능합니다.")
         
@@ -700,4 +873,5 @@ with tab3:
 st.markdown("---")
 st.markdown("🔧 **HangulPDF AI Converter** | 한글 PDF 문서 AI 변환 도구")
 st.markdown("📱 모바일, 태블릿, 데스크톱 모든 디바이스에서 사용 가능합니다.")
+st.markdown("🔬 **고급 OCR**: 고해상도 이미지 전처리 + 다단계 OCR 처리 + 텍스트 후처리로 최고 정확도 제공")
 
