@@ -4,7 +4,6 @@ import json
 import os
 from io import BytesIO
 import base64
-import streamlit.components.v1 as components
 
 # 로컬 PDF 처리 함수 (상단으로 이동)
 def process_pdf_locally(request_data):
@@ -252,6 +251,7 @@ with tab3:
                 
                 if 'extracted_text' in result:
                     # ChatGPT 프롬프트 (전체 텍스트 표시)
+                    st.markdown("**💬 ChatGPT 프롬프트:**")
                     chatgpt_prompt = f"""다음 한글 문서를 AI가 자동 분석한 뒤, 문서 유형과 주요 내용을 파악하여 다음 항목들을 포함한 요약 및 구조화된 분석 결과를 생성해주세요.
 
 {result['extracted_text']}
@@ -290,14 +290,6 @@ with tab3:
 
 문서를 사람이 읽지 않고도 전체적 흐름과 인사이트를 파악할 수 있도록 분석해주세요."""
                     
-                    # ChatGPT 프롬프트 섹션
-                    col_chatgpt1, col_chatgpt2 = st.columns([4, 1])
-                    with col_chatgpt1:
-                        st.markdown("**💬 ChatGPT 프롬프트:**")
-                    with col_chatgpt2:
-                        if st.button("📋 복사", key="copy_chatgpt"):
-                            st.success("텍스트 박스에서 Ctrl+A → Ctrl+C로 복사하세요!")
-                    
                     st.text_area(
                         "ChatGPT에 복사하여 사용하세요:", 
                         value=chatgpt_prompt, 
@@ -306,6 +298,7 @@ with tab3:
                     )
                     
                     # Gemini 프롬프트
+                    st.markdown("**🔮 Gemini 프롬프트:**")
                     gemini_prompt = f"""다음 한글 문서를 AI가 자동 분석한 뒤, 문서 유형과 주요 내용을 파악하여 다음 항목들을 포함한 요약 및 구조화된 분석 결과를 생성해주세요.
 
 {result['extracted_text']}
@@ -344,14 +337,6 @@ with tab3:
 
 문서를 사람이 읽지 않고도 전체적 흐름과 인사이트를 파악할 수 있도록 분석해주세요."""
                     
-                    # Gemini 프롬프트 섹션
-                    col_gemini1, col_gemini2 = st.columns([4, 1])
-                    with col_gemini1:
-                        st.markdown("**🔮 Gemini 프롬프트:**")
-                    with col_gemini2:
-                        if st.button("📋 복사", key="copy_gemini"):
-                            st.success("텍스트 박스에서 Ctrl+A → Ctrl+C로 복사하세요!")
-                    
                     st.text_area(
                         "Gemini에 복사하여 사용하세요:", 
                         value=gemini_prompt, 
@@ -360,23 +345,19 @@ with tab3:
                     )
                     
                     # Grok 프롬프트
-                    grok_prompt = f"""Hey Grok, analyze this Korean document:
+                    st.markdown("**🚀 Grok 프롬프트:**")
+                    grok_prompt = f"""Analyze the uploaded Korean-language PDF file and provide the following structured output in Markdown format in Korean:
 
 {result['extracted_text']}
 
-Please provide:
-- Document summary in Korean
-- Key insights and takeaways
-- Potential follow-up questions
-- Creative perspectives on the content"""
-                    
-                    # Grok 프롬프트 섹션
-                    col_grok1, col_grok2 = st.columns([4, 1])
-                    with col_grok1:
-                        st.markdown("**🚀 Grok 프롬프트:**")
-                    with col_grok2:
-                        if st.button("📋 복사", key="copy_grok"):
-                            st.success("텍스트 박스에서 Ctrl+A → Ctrl+C로 복사하세요!")
+- Document type, estimated title, date, and author/institution
+- Automatic detection of document structure (sections, tables, etc.)
+- Summary of each section (up to 3 lines)
+- Extraction of key entities (names, organizations, numbers, dates)
+- Top keywords by frequency
+- Key insights or action items if applicable
+- Special treatment based on document type (proposal, report, minutes, etc.)
+- Highlight any inconsistencies, logical errors, or missing sections"""
                     
                     st.text_area(
                         "Grok에 복사하여 사용하세요:", 
