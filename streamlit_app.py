@@ -367,7 +367,7 @@ def postprocess_text(text):
     
     # 5. 한글 문장 부호 정리
     text = re.sub(r'["""]', '"', text)  # 따옴표 통일
-    text = re.sub(r'[''']', "'", text)  # 작은따옴표 통일
+    text = re.sub(r"[''']", "'", text)  # 작은따옴표 통일
     text = re.sub(r'[…]', '...', text)  # 말줄임표 통일
     
     # 6. 숫자와 단위 사이 공백 정리
