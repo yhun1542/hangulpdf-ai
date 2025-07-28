@@ -186,9 +186,31 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# 모바일 반응형 CSS 추가
+# 모바일 반응형 CSS 추가 (배경색 문제 수정)
 st.markdown("""
 <style>
+    /* 기본 스타일 리셋 */
+    .main .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    
+    /* 정보 카드 스타일 개선 (가독성 문제 해결) */
+    .info-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e0e0e0;
+    }
+    
+    .info-card strong {
+        color: #ffffff;
+        font-weight: 600;
+    }
+    
     /* 모바일 반응형 스타일 */
     @media (max-width: 768px) {
         .main .block-container {
@@ -222,6 +244,11 @@ st.markdown("""
         .stFileUploader {
             margin-bottom: 1rem;
         }
+        
+        .info-card {
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
     }
     
     /* 태블릿 반응형 */
@@ -234,15 +261,33 @@ st.markdown("""
     
     /* 진행률 바 스타일 개선 */
     .stProgress > div > div > div > div {
-        background-color: #ff4b4b;
+        background: linear-gradient(90deg, #ff6b6b, #4ecdc4);
     }
     
-    /* 카드 스타일 */
-    .info-card {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 0.5rem 0;
+    /* 성공 메시지 스타일 */
+    .stSuccess {
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+        color: #155724;
+    }
+    
+    /* 경고 메시지 스타일 */
+    .stWarning {
+        background-color: #fff3cd;
+        border-color: #ffeaa7;
+        color: #856404;
+    }
+    
+    /* 오류 메시지 스타일 */
+    .stError {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+        color: #721c24;
+    }
+    
+    /* 사이드바 스타일 개선 */
+    .css-1d391kg {
+        background-color: #f8f9fa;
     }
     
     /* 모바일에서 사이드바 자동 축소 */
@@ -250,6 +295,37 @@ st.markdown("""
         .css-1d391kg {
             width: 0px;
         }
+    }
+    
+    /* 버튼 스타일 개선 */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* 파일 업로더 스타일 */
+    .stFileUploader > div > div {
+        border: 2px dashed #667eea;
+        border-radius: 10px;
+        padding: 2rem;
+        text-align: center;
+        background-color: #f8f9ff;
+    }
+    
+    /* 텍스트 영역 스타일 */
+    .stTextArea > div > div > textarea {
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -305,8 +381,8 @@ with tab1:
     if uploaded_file is not None:
         st.success(f"✅ 파일 업로드 완료: {uploaded_file.name}")
         
-        # 파일 정보 표시 (모바일 친화적)
-        col1, col2 = st.columns([2, 1])
+        # 파일 정보 표시 (가독성 개선)
+        col1, col2 = st.columns([3, 1])
         with col1:
             st.markdown(f"""
             <div class="info-card">
@@ -319,20 +395,14 @@ with tab1:
         # 변환 옵션
         st.subheader("🔧 변환 옵션")
         
-        # 모바일에서는 세로로, 데스크톱에서는 가로로 배치
-        if st.session_state.get('mobile_view', False):
+        # 반응형 레이아웃
+        col1, col2 = st.columns(2)
+        with col1:
             extract_text = st.checkbox("📝 텍스트 추출", value=True)
             generate_summary = st.checkbox("📋 요약 생성", value=True, disabled=not openai_api_key)
+        with col2:
             generate_qa = st.checkbox("❓ 질문-답변 생성", value=False, disabled=not openai_api_key)
             clean_text = st.checkbox("🧹 텍스트 정제", value=True)
-        else:
-            col1, col2 = st.columns(2)
-            with col1:
-                extract_text = st.checkbox("📝 텍스트 추출", value=True)
-                generate_summary = st.checkbox("📋 요약 생성", value=True, disabled=not openai_api_key)
-            with col2:
-                generate_qa = st.checkbox("❓ 질문-답변 생성", value=False, disabled=not openai_api_key)
-                clean_text = st.checkbox("🧹 텍스트 정제", value=True)
         
         # 변환 실행
         if st.button("🚀 변환 시작", type="primary", use_container_width=True):
@@ -427,9 +497,10 @@ with tab3:
         result = st.session_state.conversion_result
         
         if 'error' not in result and 'api_error' not in result:
-            # 모바일에서는 세로로, 데스크톱에서는 가로로 배치
-            if st.session_state.get('mobile_view', False):
-                # 모바일 레이아웃
+            # 반응형 레이아웃
+            col1, col2 = st.columns(2)
+            
+            with col1:
                 st.subheader("📤 텍스트 내보내기")
                 if 'extracted_text' in result:
                     st.download_button(
@@ -448,35 +519,12 @@ with tab3:
                         mime="text/plain",
                         use_container_width=True
                     )
-                
+            
+            with col2:
                 st.subheader("🤖 AI 모델 연동")
-            else:
-                # 데스크톱 레이아웃
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.subheader("📤 텍스트 내보내기")
-                    if 'extracted_text' in result:
-                        st.download_button(
-                            label="📄 텍스트 파일 다운로드",
-                            data=result['extracted_text'],
-                            file_name=f"extracted_text.txt",
-                            mime="text/plain"
-                        )
-                    
-                    if 'summary' in result:
-                        st.download_button(
-                            label="📋 요약 파일 다운로드",
-                            data=result['summary'],
-                            file_name=f"summary.txt",
-                            mime="text/plain"
-                        )
-                
-                with col2:
-                    st.subheader("🤖 AI 모델 연동")
             
             if 'extracted_text' in result:
-                # ChatGPT 프롬프트 (전체 텍스트 표시)
+                # ChatGPT 프롬프트
                 st.markdown("**💬 ChatGPT 프롬프트:**")
                 chatgpt_prompt = f"""다음 한글 문서를 AI가 자동 분석한 뒤, 문서 유형과 주요 내용을 파악하여 다음 항목들을 포함한 요약 및 구조화된 분석 결과를 생성해주세요.
 
