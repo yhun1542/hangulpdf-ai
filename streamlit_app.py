@@ -9,6 +9,9 @@ import streamlit.components.v1 as components
 # 복사 버튼 HTML/JavaScript 함수
 def create_copy_button(text_content, button_id):
     """복사 버튼을 생성하는 함수"""
+    # 텍스트 내용을 안전하게 이스케이프 처리
+    escaped_text = text_content.replace('\\', '\\\\').replace('`', '\\`').replace('$', '\\$').replace('"', '\\"').replace("'", "\\'")
+    
     copy_button_html = f"""
     <div style="display: flex; align-items: center; margin-bottom: 10px;">
         <button id="{button_id}" onclick="copyToClipboard_{button_id}()" 
@@ -20,7 +23,7 @@ def create_copy_button(text_content, button_id):
     </div>
     <script>
     function copyToClipboard_{button_id}() {{
-        const text = `{text_content.replace('`', '\\`').replace('$', '\\$')}`;
+        const text = "{escaped_text}";
         navigator.clipboard.writeText(text).then(function() {{
             document.getElementById('{button_id}').innerHTML = '✅ 복사됨!';
             document.getElementById('{button_id}').style.backgroundColor = '#00cc44';
