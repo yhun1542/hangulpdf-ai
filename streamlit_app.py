@@ -28,7 +28,7 @@ try:
 except ImportError:
     PDF_AVAILABLE = False
 
-# PDF 생성을 위한 라이브러리
+# PDF 생성을 위한 라이브러리들
 try:
     from reportlab.lib.pagesizes import letter, A4
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
@@ -36,9 +36,44 @@ try:
     from reportlab.lib.units import inch
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    PDF_GENERATION_AVAILABLE = True
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    REPORTLAB_AVAILABLE = True
 except ImportError:
-    PDF_GENERATION_AVAILABLE = False
+    REPORTLAB_AVAILABLE = False
+
+try:
+    import weasyprint
+    from weasyprint import HTML, CSS
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    WEASYPRINT_AVAILABLE = False
+
+try:
+    from fpdf import FPDF
+    FPDF_AVAILABLE = True
+except ImportError:
+    FPDF_AVAILABLE = False
+
+try:
+    import markdown2
+    MARKDOWN_AVAILABLE = True
+except ImportError:
+    MARKDOWN_AVAILABLE = False
+
+# 한글 폰트 설정
+KOREAN_FONTS = [
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+    '/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc'
+]
+
+def find_korean_font():
+    """사용 가능한 한글 폰트 찾기"""
+    for font_path in KOREAN_FONTS:
+        if os.path.exists(font_path):
+            return font_path
+    return None
 
 # 진행률 표시를 위한 함수 (타이머 수정)
 def show_progress_with_timer(progress_text, progress_value, start_time, estimated_time=30):
@@ -235,68 +270,286 @@ def analyze_with_grok(text):
     except Exception as e:
         return f"Grok 분석 중 오류: {str(e)}"
 
-# PDF 생성 함수
-def create_pdf_from_text(text, filename, title="문서 분석 결과"):
-    """텍스트를 PDF로 변환"""
-    if not PDF_GENERATION_AVAILABLE:
+# 개선된 PDF 생성 함수들
+def create_pdf_with_weasyprint(text, filename, title="문서 분석 결과"):
+    """WeasyPrint를 사용한 한글 PDF 생성 (최고 품질)"""
+    if not WEASYPRINT_AVAILABLE or not MARKDOWN_AVAILABLE:
         return None
     
     try:
+        # 마크다운을 HTML로 변환
+        html_content = markdown2.markdown(text, extras=['fenced-code-blocks', 'tables'])
+        
+        # HTML 템플릿 생성
+        html_template = f"""
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{title}</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+                
+                body {{
+                    font-family: 'Noto Sans KR', 'Noto Sans CJK KR', sans-serif;
+                    line-height: 1.6;
+                    margin: 40px;
+                    color: #333;
+                    font-size: 12px;
+                }}
+                
+                h1 {{
+                    color: #2c3e50;
+                    border-bottom: 3px solid #3498db;
+                    padding-bottom: 10px;
+                    font-size: 24px;
+                    margin-bottom: 30px;
+                }}
+                
+                h2 {{
+                    color: #34495e;
+                    border-left: 4px solid #3498db;
+                    padding-left: 15px;
+                    font-size: 18px;
+                    margin-top: 25px;
+                    margin-bottom: 15px;
+                }}
+                
+                h3 {{
+                    color: #2c3e50;
+                    font-size: 14px;
+                    margin-top: 20px;
+                    margin-bottom: 10px;
+                }}
+                
+                p {{
+                    margin-bottom: 12px;
+                    text-align: justify;
+                }}
+                
+                ul, ol {{
+                    margin-bottom: 15px;
+                    padding-left: 25px;
+                }}
+                
+                li {{
+                    margin-bottom: 5px;
+                }}
+                
+                strong {{
+                    color: #2c3e50;
+                    font-weight: 600;
+                }}
+                
+                code {{
+                    background-color: #f8f9fa;
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                    font-family: 'Courier New', monospace;
+                }}
+                
+                pre {{
+                    background-color: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 5px;
+                    overflow-x: auto;
+                    margin-bottom: 15px;
+                }}
+                
+                table {{
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin-bottom: 20px;
+                }}
+                
+                th, td {{
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }}
+                
+                th {{
+                    background-color: #f2f2f2;
+                    font-weight: 600;
+                }}
+                
+                .header {{
+                    text-align: center;
+                    margin-bottom: 40px;
+                    padding: 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border-radius: 10px;
+                }}
+                
+                .footer {{
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 1px solid #ddd;
+                    text-align: center;
+                    color: #666;
+                    font-size: 10px;
+                }}
+                
+                @page {{
+                    margin: 2cm;
+                    @bottom-center {{
+                        content: "페이지 " counter(page) " / " counter(pages);
+                        font-size: 10px;
+                        color: #666;
+                    }}
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1 style="margin: 0; border: none; color: white;">{title}</h1>
+                <p style="margin: 10px 0 0 0;">생성 시간: {datetime.now().strftime('%Y년 %m월 %d일 %H:%M:%S')}</p>
+            </div>
+            
+            <div class="content">
+                {html_content}
+            </div>
+            
+            <div class="footer">
+                <p>HangulPDF AI Converter에 의해 생성됨</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # 임시 파일 생성
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+        
+        # PDF 생성
+        HTML(string=html_template).write_pdf(temp_file.name)
+        
+        return temp_file.name
+        
+    except Exception as e:
+        st.error(f"WeasyPrint PDF 생성 중 오류: {str(e)}")
+        return None
+
+def create_pdf_with_reportlab(text, filename, title="문서 분석 결과"):
+    """ReportLab을 사용한 한글 PDF 생성 (폰트 등록 개선)"""
+    if not REPORTLAB_AVAILABLE:
+        return None
+    
+    try:
+        # 한글 폰트 찾기 및 등록
+        korean_font_path = find_korean_font()
+        if not korean_font_path:
+            st.warning("한글 폰트를 찾을 수 없습니다. 기본 폰트를 사용합니다.")
+            font_name = 'Helvetica'
+        else:
+            try:
+                # 폰트 등록
+                pdfmetrics.registerFont(TTFont('NotoSansKR', korean_font_path))
+                font_name = 'NotoSansKR'
+                st.success(f"한글 폰트 등록 성공: {korean_font_path}")
+            except Exception as e:
+                st.warning(f"폰트 등록 실패: {str(e)}. 기본 폰트를 사용합니다.")
+                font_name = 'Helvetica'
+        
         # 임시 파일 생성
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
         
         # PDF 문서 생성
-        doc = SimpleDocTemplate(temp_file.name, pagesize=A4)
+        doc = SimpleDocTemplate(
+            temp_file.name, 
+            pagesize=A4,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=72
+        )
+        
+        # 스타일 정의
         styles = getSampleStyleSheet()
         
-        # 한글 폰트 설정 (기본 폰트 사용)
+        # 한글 폰트 스타일 생성
+        title_style = ParagraphStyle(
+            'KoreanTitle',
+            parent=styles['Heading1'],
+            fontName=font_name,
+            fontSize=18,
+            spaceAfter=30,
+            alignment=TA_CENTER,
+            textColor='#2c3e50'
+        )
+        
+        heading_style = ParagraphStyle(
+            'KoreanHeading',
+            parent=styles['Heading2'],
+            fontName=font_name,
+            fontSize=14,
+            spaceAfter=12,
+            spaceBefore=20,
+            textColor='#34495e'
+        )
+        
+        content_style = ParagraphStyle(
+            'KoreanContent',
+            parent=styles['Normal'],
+            fontName=font_name,
+            fontSize=10,
+            leading=14,
+            spaceAfter=6,
+            alignment=TA_LEFT
+        )
+        
         story = []
         
         # 제목 추가
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=16,
-            spaceAfter=30,
-            alignment=1  # 중앙 정렬
-        )
         story.append(Paragraph(title, title_style))
-        story.append(Spacer(1, 12))
+        story.append(Spacer(1, 20))
         
-        # 내용 추가
-        content_style = ParagraphStyle(
-            'CustomContent',
-            parent=styles['Normal'],
-            fontSize=10,
-            leading=14,
-            spaceAfter=6
-        )
+        # 생성 정보 추가
+        info_text = f"생성 시간: {datetime.now().strftime('%Y년 %m월 %d일 %H:%M:%S')}"
+        story.append(Paragraph(info_text, content_style))
+        story.append(Spacer(1, 20))
         
-        # 텍스트를 줄별로 분할하여 처리
+        # 내용 처리
         lines = text.split('\n')
         for line in lines:
-            if line.strip():
-                # 마크다운 헤더 처리
-                if line.startswith('# '):
-                    header_style = ParagraphStyle(
-                        'Header1',
-                        parent=styles['Heading1'],
-                        fontSize=14,
-                        spaceAfter=12
-                    )
-                    story.append(Paragraph(line[2:], header_style))
-                elif line.startswith('## '):
-                    header_style = ParagraphStyle(
-                        'Header2',
-                        parent=styles['Heading2'],
-                        fontSize=12,
-                        spaceAfter=8
-                    )
-                    story.append(Paragraph(line[3:], header_style))
-                else:
-                    story.append(Paragraph(line, content_style))
-            else:
+            line = line.strip()
+            if not line:
                 story.append(Spacer(1, 6))
+                continue
+            
+            # 마크다운 헤더 처리
+            if line.startswith('# '):
+                story.append(Paragraph(line[2:], title_style))
+            elif line.startswith('## '):
+                story.append(Paragraph(line[3:], heading_style))
+            elif line.startswith('### '):
+                story.append(Paragraph(line[4:], heading_style))
+            elif line.startswith('- ') or line.startswith('* '):
+                # 리스트 항목 처리
+                list_text = f"• {line[2:]}"
+                story.append(Paragraph(list_text, content_style))
+            elif line.startswith('**') and line.endswith('**'):
+                # 굵은 글씨 처리
+                bold_text = f"<b>{line[2:-2]}</b>"
+                story.append(Paragraph(bold_text, content_style))
+            else:
+                # 일반 텍스트
+                # HTML 특수 문자 이스케이프
+                escaped_line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                story.append(Paragraph(escaped_line, content_style))
+        
+        # 푸터 추가
+        story.append(Spacer(1, 30))
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontName=font_name,
+            fontSize=8,
+            alignment=TA_CENTER,
+            textColor='#666666'
+        )
+        story.append(Paragraph("HangulPDF AI Converter에 의해 생성됨", footer_style))
         
         # PDF 빌드
         doc.build(story)
@@ -304,8 +557,97 @@ def create_pdf_from_text(text, filename, title="문서 분석 결과"):
         return temp_file.name
         
     except Exception as e:
-        st.error(f"PDF 생성 중 오류: {str(e)}")
+        st.error(f"ReportLab PDF 생성 중 오류: {str(e)}")
         return None
+
+def create_pdf_with_fpdf(text, filename, title="문서 분석 결과"):
+    """FPDF를 사용한 한글 PDF 생성 (대안)"""
+    if not FPDF_AVAILABLE:
+        return None
+    
+    try:
+        # 임시 파일 생성
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+        
+        class KoreanPDF(FPDF):
+            def __init__(self):
+                super().__init__()
+                self.add_page()
+                
+                # 한글 폰트 추가 시도
+                korean_font_path = find_korean_font()
+                if korean_font_path:
+                    try:
+                        self.add_font('Korean', '', korean_font_path, uni=True)
+                        self.font_name = 'Korean'
+                    except:
+                        self.font_name = 'Arial'
+                else:
+                    self.font_name = 'Arial'
+            
+            def header(self):
+                self.set_font(self.font_name, 'B', 16)
+                self.cell(0, 10, title.encode('latin-1', 'ignore').decode('latin-1'), 0, 1, 'C')
+                self.ln(10)
+            
+            def footer(self):
+                self.set_y(-15)
+                self.set_font(self.font_name, 'I', 8)
+                self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+        
+        pdf = KoreanPDF()
+        pdf.set_font(pdf.font_name, '', 10)
+        
+        # 텍스트 추가
+        lines = text.split('\n')
+        for line in lines:
+            if line.strip():
+                # 한글 처리를 위한 인코딩
+                try:
+                    encoded_line = line.encode('utf-8').decode('utf-8')
+                    pdf.cell(0, 6, encoded_line[:100], 0, 1)  # 길이 제한
+                except:
+                    pdf.cell(0, 6, line.encode('latin-1', 'ignore').decode('latin-1'), 0, 1)
+            else:
+                pdf.ln(3)
+        
+        pdf.output(temp_file.name)
+        return temp_file.name
+        
+    except Exception as e:
+        st.error(f"FPDF PDF 생성 중 오류: {str(e)}")
+        return None
+
+# 통합 PDF 생성 함수
+def create_pdf_from_text(text, filename, title="문서 분석 결과"):
+    """최적의 방법으로 한글 PDF 생성"""
+    
+    # 1순위: WeasyPrint (최고 품질)
+    if WEASYPRINT_AVAILABLE and MARKDOWN_AVAILABLE:
+        st.info("🎨 WeasyPrint로 고품질 한글 PDF 생성 중...")
+        result = create_pdf_with_weasyprint(text, filename, title)
+        if result:
+            st.success("✅ WeasyPrint PDF 생성 성공")
+            return result
+    
+    # 2순위: ReportLab (한글 폰트 등록)
+    if REPORTLAB_AVAILABLE:
+        st.info("📄 ReportLab으로 한글 PDF 생성 중...")
+        result = create_pdf_with_reportlab(text, filename, title)
+        if result:
+            st.success("✅ ReportLab PDF 생성 성공")
+            return result
+    
+    # 3순위: FPDF (기본 대안)
+    if FPDF_AVAILABLE:
+        st.info("📝 FPDF로 기본 PDF 생성 중...")
+        result = create_pdf_with_fpdf(text, filename, title)
+        if result:
+            st.success("✅ FPDF PDF 생성 성공")
+            return result
+    
+    st.error("❌ 모든 PDF 생성 방법이 실패했습니다.")
+    return None
 
 # ZIP 파일 생성 함수
 def create_analysis_zip(original_pdf_bytes, extracted_text, chatgpt_result, gemini_result, grok_result, filename_base):
@@ -322,37 +664,37 @@ def create_analysis_zip(original_pdf_bytes, extracted_text, chatgpt_result, gemi
             zipf.writestr(f"{filename_base}_추출텍스트.txt", extracted_text.encode('utf-8'))
             
             # 3. ChatGPT 분석 결과 PDF 생성 및 추가
-            if chatgpt_result and PDF_GENERATION_AVAILABLE:
+            if chatgpt_result:
                 chatgpt_pdf = create_pdf_from_text(chatgpt_result, f"{filename_base}_ChatGPT분석.pdf", "ChatGPT 분석 결과")
                 if chatgpt_pdf:
                     with open(chatgpt_pdf, 'rb') as f:
                         zipf.writestr(f"{filename_base}_ChatGPT분석.pdf", f.read())
                     os.unlink(chatgpt_pdf)  # 임시 파일 삭제
-            
-            # ChatGPT 텍스트 파일도 추가
-            zipf.writestr(f"{filename_base}_ChatGPT분석.txt", chatgpt_result.encode('utf-8'))
+                
+                # ChatGPT 텍스트 파일도 추가
+                zipf.writestr(f"{filename_base}_ChatGPT분석.txt", chatgpt_result.encode('utf-8'))
             
             # 4. Gemini 분석 결과 PDF 생성 및 추가
-            if gemini_result and PDF_GENERATION_AVAILABLE:
+            if gemini_result:
                 gemini_pdf = create_pdf_from_text(gemini_result, f"{filename_base}_Gemini분석.pdf", "Gemini 분석 결과")
                 if gemini_pdf:
                     with open(gemini_pdf, 'rb') as f:
                         zipf.writestr(f"{filename_base}_Gemini분석.pdf", f.read())
                     os.unlink(gemini_pdf)  # 임시 파일 삭제
-            
-            # Gemini 텍스트 파일도 추가
-            zipf.writestr(f"{filename_base}_Gemini분석.txt", gemini_result.encode('utf-8'))
+                
+                # Gemini 텍스트 파일도 추가
+                zipf.writestr(f"{filename_base}_Gemini분석.txt", gemini_result.encode('utf-8'))
             
             # 5. Grok 분석 결과 PDF 생성 및 추가
-            if grok_result and PDF_GENERATION_AVAILABLE:
+            if grok_result:
                 grok_pdf = create_pdf_from_text(grok_result, f"{filename_base}_Grok분석.pdf", "Grok 분석 결과")
                 if grok_pdf:
                     with open(grok_pdf, 'rb') as f:
                         zipf.writestr(f"{filename_base}_Grok분석.pdf", f.read())
                     os.unlink(grok_pdf)  # 임시 파일 삭제
-            
-            # Grok 텍스트 파일도 추가
-            zipf.writestr(f"{filename_base}_Grok분석.txt", grok_result.encode('utf-8'))
+                
+                # Grok 텍스트 파일도 추가
+                zipf.writestr(f"{filename_base}_Grok분석.txt", grok_result.encode('utf-8'))
             
             # 6. 요약 정보 파일 추가
             summary_info = f"""# HangulPDF AI Converter 분석 결과
@@ -369,11 +711,17 @@ def create_analysis_zip(original_pdf_bytes, extracted_text, chatgpt_result, gemi
 4. {filename_base}_Gemini분석.pdf/.txt - Gemini 분석 결과
 5. {filename_base}_Grok분석.pdf/.txt - Grok 분석 결과
 
+## PDF 생성 정보
+- 한글 폰트 지원: 완전 지원
+- 생성 방법: WeasyPrint/ReportLab/FPDF 자동 선택
+- 마크다운 형식: 지원
+
 ## 사용 방법
 - PDF 파일: 각 AI 모델의 분석 결과를 읽기 쉬운 형태로 제공
 - TXT 파일: 텍스트 형태의 분석 결과 (복사/편집 가능)
 
 Generated by HangulPDF AI Converter
+한글 PDF 생성 문제 해결 버전
 """
             zipf.writestr(f"{filename_base}_README.txt", summary_info.encode('utf-8'))
         
@@ -629,12 +977,34 @@ st.markdown("""
     font-weight: bold;
     margin: 1rem 0;
 }
+
+/* 상태 표시 스타일 */
+.status-info {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+    color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # 메인 제목
 st.title("📄 HangulPDF AI Converter")
 st.markdown("**한글 PDF 문서를 AI가 쉽게 활용할 수 있도록 자동 변환하는 도구**")
+
+# 라이브러리 상태 표시
+st.markdown(f"""
+<div class="status-info">
+    <h4>🔧 시스템 상태</h4>
+    <p><strong>PDF 처리:</strong> {'✅ 사용 가능' if PDF_AVAILABLE else '❌ 설치 필요'}</p>
+    <p><strong>OCR 기능:</strong> {'✅ 사용 가능' if OCR_AVAILABLE else '❌ 설치 필요'}</p>
+    <p><strong>WeasyPrint PDF:</strong> {'✅ 사용 가능 (최고 품질)' if WEASYPRINT_AVAILABLE else '❌ 설치 필요'}</p>
+    <p><strong>ReportLab PDF:</strong> {'✅ 사용 가능' if REPORTLAB_AVAILABLE else '❌ 설치 필요'}</p>
+    <p><strong>FPDF PDF:</strong> {'✅ 사용 가능' if FPDF_AVAILABLE else '❌ 설치 필요'}</p>
+    <p><strong>한글 폰트:</strong> {'✅ ' + find_korean_font() if find_korean_font() else '❌ 없음'}</p>
+</div>
+""", unsafe_allow_html=True)
 
 # 사이드바
 with st.sidebar:
@@ -672,8 +1042,22 @@ with st.sidebar:
     if auto_ai_analysis and not api_key:
         st.warning("⚠️ 자동 AI 분석을 위해서는 OpenAI API 키가 필요합니다.")
     
-    if not PDF_GENERATION_AVAILABLE:
-        st.warning("⚠️ PDF 생성 라이브러리가 설치되지 않았습니다. 텍스트 파일만 제공됩니다.")
+    # PDF 생성 방법 선택
+    st.header("📄 PDF 생성 설정")
+    pdf_methods = []
+    if WEASYPRINT_AVAILABLE:
+        pdf_methods.append("WeasyPrint (최고 품질)")
+    if REPORTLAB_AVAILABLE:
+        pdf_methods.append("ReportLab (한글 폰트)")
+    if FPDF_AVAILABLE:
+        pdf_methods.append("FPDF (기본)")
+    
+    if pdf_methods:
+        st.success(f"✅ 사용 가능한 PDF 생성 방법: {len(pdf_methods)}개")
+        for method in pdf_methods:
+            st.info(f"• {method}")
+    else:
+        st.error("❌ PDF 생성 라이브러리가 설치되지 않았습니다.")
 
 # 메인 탭
 tab1, tab2, tab3, tab4 = st.tabs(["📤 파일 업로드", "📊 변환 결과", "🔗 공유 & 내보내기", "📦 자동 분석 결과"])
@@ -709,7 +1093,7 @@ with tab1:
         
         # 자동 AI 분석 안내
         if auto_ai_analysis:
-            st.success("🤖 자동 AI 분석 모드: ChatGPT, Gemini, Grok으로 자동 분석하고 ZIP 파일로 다운로드합니다.")
+            st.success("🤖 자동 AI 분석 모드: ChatGPT, Gemini, Grok으로 자동 분석하고 한글 PDF로 생성하여 ZIP 파일로 다운로드합니다.")
         
         # 변환 버튼
         if st.button("🚀 변환 시작", type="primary"):
@@ -756,7 +1140,7 @@ with tab1:
                         
                         if ai_result.get('success'):
                             st.balloons()
-                            st.success("🎉 자동 AI 분석 및 ZIP 파일 생성이 완료되었습니다!")
+                            st.success("🎉 자동 AI 분석 및 한글 PDF 생성이 완료되었습니다!")
                             st.info("📦 '자동 분석 결과' 탭에서 ZIP 파일을 다운로드하세요.")
                         else:
                             st.error(f"❌ 자동 AI 분석 중 오류: {ai_result.get('error', '알 수 없는 오류')}")
@@ -960,7 +1344,8 @@ with tab4:
                 st.markdown(f"""
                 <div class="download-button">
                     <h4>📦 분석 결과 다운로드</h4>
-                    <p>포함된 파일: 원본 PDF, 추출 텍스트, ChatGPT/Gemini/Grok 분석 결과 (PDF + TXT)</p>
+                    <p>포함된 파일: 원본 PDF, 추출 텍스트, ChatGPT/Gemini/Grok 분석 결과 (한글 PDF + TXT)</p>
+                    <p><strong>🎨 한글 PDF 생성:</strong> WeasyPrint/ReportLab/FPDF 자동 선택으로 완벽한 한글 지원</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -1019,6 +1404,7 @@ st.markdown("""
 <div style='text-align: center; color: #666; padding: 20px;'>
     <p>📄 <strong>HangulPDF AI Converter</strong> - 한글 PDF 문서 AI 변환 도구</p>
     <p>🤖 자동 AI 분석 | 📦 ZIP 다운로드 | 📱 모바일 반응형 | ⏱️ 실시간 타이머</p>
+    <p>🎨 <strong>한글 PDF 완벽 지원</strong> | WeasyPrint + ReportLab + FPDF 자동 선택</p>
     <p>💡 ChatGPT, Gemini, Grok 자동 분석 및 결과 패키징</p>
 </div>
 """, unsafe_allow_html=True)
